@@ -2,9 +2,9 @@
 
 Mid-mission saves in coop. Vanilla coop has no saving at all: if the mission goes wrong you start over.
 
-- **Save checkpoint**: every PC saves the current battle state at the same simulation step. A new checkpoint
+- **Save**: every PC saves the current battle state at the same simulation step. A new checkpoint
   overwrites the previous one. The mission's own autosaves become checkpoints too.
-- **Reload checkpoint**: the host's game leaves the match and starts the same mission again automatically, and
+- **Reload**: the host's game leaves the match and starts the same mission again automatically, and
   every PC loads the checkpoint instead of the mission start, with units, triggers and objectives restored.
 
 Checkpoints live only for the current mission session: they're meant for "retry from here", not for saving
@@ -23,8 +23,8 @@ must match anyway to join).
 
 In a campaign or skirmish mission open the **reinforcement panel**. There are two new buttons:
 
-- **Save checkpoint** (10 s cooldown).
-- **Reload checkpoint**. Any player can press it. After about 2 s the host's game leaves the match, waits for
+- **Save** (10 s cooldown).
+- **Reload**. Any player can press it. After about 2 s the host's game leaves the match, waits for
   the lobby and starts the same mission again. Every PC then loads its own checkpoint.
 
 The saved files are in `Documents\My Games\gates of hell\profiles\<id>\save\`: `coop_ckpt.sav` (each player)
@@ -50,7 +50,7 @@ host's local dedicated server) runs the DLL.
   cleared during the save, so the DLL clears it for the duration.
 
 **Reload**
-- **Reload checkpoint** runs `{"achievement" {name rus_skirmish1_easy} {nation coop_ckpt_reload}}`. The game
+- **Reload** runs `{"achievement" {name rus_skirmish1_easy} {nation coop_ckpt_reload}}`. The game
   forwards achievement commands to every client and unlocks nothing in a network game. The DLL recognises
   the `nation` string and writes the marker file.
 - The host's game then leaves the match (the confirm handler of *close game* / *abandon campaign*) and presses
@@ -72,7 +72,7 @@ host's local dedicated server) runs the DLL.
 
 - A script sequence that was halfway through when the checkpoint was saved doesn't resume after a reload.
 - Checkpoints are session-only: the files stay on disk, but loading them is only automatic through
-  **Reload checkpoint** in the same mission.
+  **Reload** in the same mission.
 - All players need the same DLL version and the same data mod.
 - Diagnostics in the log: a watchdog logs the stacks if a checkpoint save or load takes more than 4 s (loading a
   big mission can legitimately take 10–15 s), and a fatal-exception logger records heap corruption.

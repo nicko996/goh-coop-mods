@@ -6,7 +6,7 @@ Install only the ones you want.
 | Mod | What it does | Who needs it |
 |---|---|---|
 | [Coop Game Speed](mods/coop-game-speed/README.md) | The **Backspace** "Game speed" menu works in coop, and the whole match follows the chosen speed | **Only the host** |
-| [Coop Checkpoint](mods/coop-checkpoint/README.md) | **Save checkpoint** / **Reload checkpoint** buttons for mid-mission saves in coop | **Every player** in the match |
+| [Coop Checkpoint](mods/coop-checkpoint/README.md) | **Save** / **Reload** buttons for mid-mission saves in coop | **Every player** in the match |
 | [Loot Highlight](mods/loot-highlight/README.md) | The **V** key also outlines crates, vehicles and other containers with items, and you can open them from there | Only you (client-side, visual) |
 | [Inspect Preview](mods/inspect-preview/README.md) | With **V** held down, hovering a corpse or container shows its inventory grid, look only | Only you (client-side, visual) |
 

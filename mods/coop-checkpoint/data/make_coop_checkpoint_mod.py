@@ -2,7 +2,7 @@
 Coop Checkpoint - mod generator for Call to Arms: Gates of Hell
 ===============================================================
 
-Builds the data mod  coop_checkpoint  which adds "Save checkpoint" and "Reload checkpoint" buttons to the
+Builds the data mod  coop_checkpoint  which adds "Save" and "Reload" buttons to the
 reinforcement panel of every campaign and skirmish mission (map/single/**/0.mi), read from the game's own
 resource packs (so the output always matches the installed game version).
 
@@ -186,11 +186,11 @@ def write_localization(out):
     lines = ['msgid ""', 'msgstr ""', '"Project-Id-Version: Coop Checkpoint\\n"', '"Language: en\\n"',
              '"MIME-Version: 1.0\\n"', '"Content-Type: text/plain; charset=UTF-8\\n"',
              '"Content-Transfer-Encoding: 8bit\\n"', '',
-             'msgctxt "mod/%s/save"' % MOD_NAME, 'msgid "Save checkpoint"', 'msgstr ""', '',
+             'msgctxt "mod/%s/save"' % MOD_NAME, 'msgid " "', 'msgstr ""', '',
              'msgctxt "mod/%s/save_hint"' % MOD_NAME,
              SAVE_HINT,
              'msgstr ""', '',
-             'msgctxt "mod/%s/reload"' % MOD_NAME, 'msgid "Reload checkpoint"', 'msgstr ""', '',
+             'msgctxt "mod/%s/reload"' % MOD_NAME, 'msgid " "', 'msgstr ""', '',
              'msgctxt "mod/%s/reload_hint"' % MOD_NAME,
              'msgid "Arm the reload: when the host restarts this mission, every player starts from the last checkpoint."',
              'msgstr ""', '']
@@ -201,12 +201,12 @@ def write_localization(out):
     it = ['msgid ""', 'msgstr ""', '"Project-Id-Version: Coop Checkpoint\\n"', '"Language: it\\n"',
           '"MIME-Version: 1.0\\n"', '"Content-Type: text/plain; charset=UTF-8\\n"',
           '"Content-Transfer-Encoding: 8bit\\n"', '',
-          'msgctxt "mod/%s/save"' % MOD_NAME, 'msgid "Save checkpoint"', 'msgstr "Salva checkpoint"', '',
+          'msgctxt "mod/%s/save"' % MOD_NAME, 'msgid " "', 'msgstr " "', '',
           'msgctxt "mod/%s/save_hint"' % MOD_NAME,
           SAVE_HINT,
           'msgstr "Salva lo stato attuale della battaglia per tutti i giocatori (coop: ogni giocatore deve avere la mod)."',
           '',
-          'msgctxt "mod/%s/reload"' % MOD_NAME, 'msgid "Reload checkpoint"', 'msgstr "Ricarica checkpoint"', '',
+          'msgctxt "mod/%s/reload"' % MOD_NAME, 'msgid " "', 'msgstr " "', '',
           'msgctxt "mod/%s/reload_hint"' % MOD_NAME,
           'msgid "Arm the reload: when the host restarts this mission, every player starts from the last checkpoint."',
           'msgstr "Arma la ricarica: quando l\'host riavvia questa missione, tutti ripartono dall\'ultimo checkpoint."',
@@ -227,23 +227,28 @@ def write_icons(game_dir, out):
     dst = os.path.join(out, "resource", "interface", "scene", "unit_icon")
     os.makedirs(dst, exist_ok=True)
     font = None
-    for cand in ("C:/Windows/Fonts/impact.ttf", "C:/Windows/Fonts/arialbd.ttf"):
+    for cand in ("C:/Windows/Fonts/arialbd.ttf", "C:/Windows/Fonts/segoeuib.ttf"):
         if os.path.isfile(cand):
-            font = ImageFont.truetype(cand, 21)
+            font = ImageFont.truetype(cand, 22)
             break
     if font is None:
-        font = ImageFont.load_default(size=18)
-    for key, label in (("save", "SAVE\nCHECKPT"), ("reload", "RELOAD\nCHECKPT")):
+        font = ImageFont.load_default(size=20)
+    # Minimal buttons: the vanilla "skip preparation" frame with its stopwatch painted over by the frame's own
+    # texture (strips from both sides of the same image), and one word centred on it.
+    for key, label in (("save", "Save"), ("reload", "Reload")):
         for state in range(4):
             raw = scene.read("scene/unit_icon/skip_preparation_eng_0%d.tga" % state)
             src = Image.open(io.BytesIO(raw))
             orientation = src.info.get("orientation", -1)
             im = src.convert("RGBA")
+            y0, y1 = 8, 64
+            im.paste(im.crop((12, y0, 40, y1)), (44, y0))
+            im.paste(im.crop((12, y0, 40, y1)), (72, y0))
+            im.paste(im.crop((104, y0, 132, y1)), (100, y0))
             draw = ImageDraw.Draw(im)
-            cx, cy = 43, 36
-            fill = (235, 235, 235, 255) if state != 3 else (140, 140, 140, 255)
-            draw.multiline_text((cx, cy), label, font=font, fill=fill, anchor="mm", align="center",
-                                stroke_width=2, stroke_fill=(0, 0, 0, 255), spacing=-2)
+            fill = (235, 235, 235, 255) if state != 3 else (130, 130, 130, 255)
+            draw.text((im.width // 2, im.height // 2), label, font=font, fill=fill, anchor="mm",
+                      stroke_width=1, stroke_fill=(0, 0, 0, 255))
             im.save(os.path.join(dst, "coop_ckpt_%s_0%d.tga" % (key, state)), orientation=orientation)
     ic = Image.open(os.path.join(dst, "coop_ckpt_save_00.tga")).convert("RGBA")
     prev = Image.new("RGBA", (300, 170), (40, 40, 40, 255))
@@ -255,7 +260,7 @@ def write_icons(game_dir, out):
 MOD_INFO = """{mod
 \t{name "%(name)s"}
 \t{tags "Gameplay"}
-\t{desc "Coop checkpoints: Save / Reload checkpoint buttons in the reinforcement panel of every campaign and skirmish mission. Every player of the coop match needs this mod AND binaries/x64/goh_mods/coop_checkpoint.dll (see README)."}
+\t{desc "Coop checkpoints: Save / Reload buttons in the reinforcement panel of every campaign and skirmish mission. Every player of the coop match needs this mod AND binaries/x64/goh_mods/coop_checkpoint.dll (see README)."}
 \t{minGameVersion "any"}
 \t{maxGameVersion "any"}
 }
@@ -268,11 +273,11 @@ Part of the Coop Checkpoint mod: it only works together with
 <game folder>\binaries\x64\version.dll  and  <game folder>\binaries\x64\goh_mods\coop_checkpoint.dll.
 EVERY player of the coop match needs both and must enable this mod in Options > Mods.
 
-Save checkpoint: every PC saves the battle state at the same simulation step
+Save: every PC saves the battle state at the same simulation step
   (Documents\My Games\gates of hell\profiles\<id>\save\coop_ckpt.sav; the host's local
   server writes coop_ckpt_srv.sav).  A new checkpoint overwrites the previous one.  The mission's own
   autosaves become checkpoints too.
-Reload checkpoint: every PC arms the reload; the host's game leaves the match and starts the same
+Reload: every PC arms the reload; the host's game leaves the match and starts the same
   mission again, and every PC loads its checkpoint instead of the mission start.
 
 Logs: %TEMP%\goh_coop_checkpoint_<exe name>.log

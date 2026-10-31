@@ -2,8 +2,8 @@
  * Coop Checkpoint - Gates of Hell mod DLL (goh_mods\coop_checkpoint.dll)
  * =======================================================================
  *
- * Mid-mission checkpoints in coop: "Save checkpoint" writes the battle state on every PC at the same
- * simulation step, "Reload checkpoint" restarts the mission from it.  EVERY player of the match needs this
+ * Mid-mission checkpoints in coop: "Save" writes the battle state on every PC at the same
+ * simulation step, "Reload" restarts the mission from it.  EVERY player of the match needs this
  * DLL and the coop_checkpoint data mod (mission buttons and scripts, see data/make_coop_checkpoint_mod.py).
  *
  * Save: the mission-script command {"autosave"} (eCmd_autosave::execute) does nothing in network games.
@@ -12,7 +12,7 @@
  * DLL saves at the same point of their command stream.  Files: coop_ckpt.sav (clients) and
  * coop_ckpt_srv.sav (local server) in the profile save folder.
  *
- * Reload: the mod's "Reload checkpoint" button runs {"achievement" {nation coop_ckpt_reload}}, which the
+ * Reload: the mod's "Reload" button runs {"achievement" {nation coop_ckpt_reload}}, which the
  * game forwards to every client.  Each peer writes a marker file (%TEMP%\coop_checkpoint_reload_<role>.txt)
  * and, when the same mission starts again, the scene loader loads the checkpoint archive instead of the
  * mission (same path block as "load game").  The host's game leaves the match and starts it again by itself.
@@ -735,7 +735,7 @@ static void install_entity_map_fix(void)
   if (fixed == 0) logf_("ERROR: entity map fix: unregister erase site not found");
 }
 
-/* Automatic restart after "Reload checkpoint" (host client only).  The reload is armed on every peer by the
+/* Automatic restart after "Reload" (host client only).  The reload is armed on every peer by the
  * replicated command; the host then does what it would do by hand: Esc menu > close / abandon (the confirm
  * handler "gui.gm.leave", client 0x2df480) and, back in the lobby, the start button (0x2f80b0:
  * session service vtable +0x158).  GUI code must run on the main thread: the game window is subclassed and the
