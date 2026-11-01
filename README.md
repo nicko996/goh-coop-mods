@@ -7,16 +7,20 @@ Install only the ones you want.
 |---|---|---|
 | [Coop Game Speed](mods/coop-game-speed/README.md) | The **Backspace** "Game speed" menu works in coop, and the whole match follows the chosen speed | **Only the host** |
 | [Coop Checkpoint](mods/coop-checkpoint/README.md) | **Save** / **Reload** buttons for mid-mission saves in coop | **Every player** in the match |
-| [Loot Highlight](mods/loot-highlight/README.md) | The **V** key also outlines crates, vehicles and other containers with items, and you can open them from there | Only you (client-side, visual) |
+| [Loot Highlight](mods/loot-highlight/README.md) | The **V** key also outlines crates, empty vehicles and other containers with items, and you can open them from there | Only you (client-side, visual) |
 | [Inspect Preview](mods/inspect-preview/README.md) | With **V** held down, hovering a corpse or container shows its inventory grid, look only | Only you (client-side, visual) |
 
 The mods don't depend on each other. Inspect Preview works on corpses by itself. To preview crates and
 vehicles too, install Loot Highlight as well, because that mod lets V hover them.
 
+Every mod has its own version and its own releases (tag `<mod>-v<version>`, e.g. `loot-highlight-v1.0.2`).
+What changed in each version is in the [changelog](CHANGELOG.md).
+
 ## Install
 
-1. Download the zip of each mod you want from the [latest release](../../releases/latest)
-   (or `goh-all-mods-*.zip` for all four).
+1. Download the zip of each mod you want from [Releases](../../releases): the newest release of each mod has
+   `goh-<mod>-v<version>.zip`, and `goh-all-mods.zip` in the [latest release](../../releases/latest) has the
+   current version of all four.
 2. Extract each zip into the game folder, the one that contains `binaries` and `mods`, e.g.
    `C:\Program Files (x86)\Steam\steamapps\common\Call to Arms - Gates of Hell`.
    If Windows asks, overwrite `version.dll`: it's the same file in every zip.
@@ -84,7 +88,7 @@ zig cc -target x86_64-windows-gnu -shared -O2 -s -Wall -Wextra -o <out>.dll <sou
 | `goh_mods/inspect_preview.dll` | `mods/inspect-preview/inspect_preview.c` |
 
 Shared code is in `common/`: `goh_common.h` (signature scanning, code patching, hooks, logging, DLL entry),
-`goh_loot.h` (container filter shared by the two loot mods) and `goh_version.h` (the version number).
+and `goh_loot.h` (container filter shared by the two loot mods).
 
 A mingw-w64 GCC works too (`x86_64-w64-mingw32-gcc -shared -O2 -s ...`). MSVC doesn't, because the loader
 uses GCC inline assembly for its export stubs.
@@ -105,15 +109,19 @@ It needs Python 3.8+ and optionally Pillow for the button icons (`pip install pi
 
 ```
 .\build.ps1
-python tools/package.py "<game folder>"      # -> build\release\goh-<mod>-v<version>.zip, goh-all-mods-v<version>.zip
+python tools/package.py "<game folder>"      # -> build\release\goh-<mod>-v<mod version>.zip, goh-all-mods.zip
 ```
 
-The version number is in `common/goh_version.h`, and the release tag is `v<version>`.
+Every mod has its own version: `GOH_MOD_VERSION` next to `GOH_MOD_NAME` in the mod's `.c` file. The loader's is
+`GOH_LOADER_VERSION` in `loader/version_proxy.c`. Bump only what changed; a change to `common/goh_loot.h`
+concerns both loot mods. Release tags are per mod, `<mod id>-v<version>` (e.g. `loot-highlight-v1.0.2`), and
+`loader-v<version>`. `goh-all-mods.zip` lists every version in `goh_mods_readme/VERSION.txt`. Up to v1.0.1 the
+repository used a single version and tag for everything.
 
 ## Repository layout
 
 ```
-common/                 shared headers (goh_common.h, goh_loot.h, goh_version.h)
+common/                 shared headers (goh_common.h, goh_loot.h)
 loader/                 version.dll proxy that loads binaries\x64\goh_mods\*.dll
 mods/coop-game-speed/   Coop Game Speed DLL + README
 mods/coop-checkpoint/   Coop Checkpoint DLL + README, data/ = data-mod generator
@@ -121,6 +129,7 @@ mods/loot-highlight/    Loot Highlight DLL + README
 mods/inspect-preview/   Inspect Preview DLL + README
 tools/package.py        release zips
 build.ps1               builds every DLL with Zig
+CHANGELOG.md            what changed in each mod version
 ```
 
 ## Disclaimer

@@ -34,6 +34,7 @@
  * Log: %TEMP%\goh_coop_game_speed_<exe name>.log
  */
 #define GOH_MOD_NAME "coop_game_speed"
+#define GOH_MOD_VERSION "1.0.1"   /* this mod's own version (release tag <mod-id>-v<version>) */
 #include "../../common/goh_common.h"
 
 /* ------------------------------------------------------------------ signatures */

@@ -26,7 +26,9 @@
 #include <string.h>
 #include <wchar.h>
 
-#include "goh_version.h"
+#ifndef GOH_MOD_VERSION
+#error "define GOH_MOD_VERSION (the mod's own version) before including goh_common.h"
+#endif
 
 #define GOH_UNUSED __attribute__((unused))
 #define W (-1)

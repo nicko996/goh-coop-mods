@@ -11,7 +11,12 @@
  *    eItem* vector is +0x10..+0x18.
  *  - entity+0x30: bit 1 = actor (soldiers, vehicles, guns), bit 2 = human.
  *  - is_own (client 0x7fa430): the entity belongs to the local player (entity+0xda8, actors only;
- *    static entities such as crates have no owner field).
+ *    static entities such as crates have no owner field).  It calls the local player getter (0xa464f0) at +0x1a.
+ *  - GameControl+0x598: per player (32 bytes each, index = local player byte) the examination in progress
+ *    (unit at +0, target at +0x10), filled by gc.exam.begin (0xaf84d0) before the exchange window opens.
+ *  - eActor+0xdb4 bit 8: the vehicle / gun has a crew on board (the game's examine action, 0xb6a2c0, refuses a
+ *    crewed actor unless it is friendly and yours; checked live: enemy crewed 0x1162, empty 0x100c, and the bit
+ *    turns on when your units board).
  */
 #ifndef GOH_LOOT_H
 #define GOH_LOOT_H
@@ -30,8 +35,10 @@ static const int SIG_INVENTORY_OF[] = {
   0x48,0x85,0xC9,0x74,0x1A,0x48,0x8B,0x81,0x78,0x05,0x00,0x00,0x48,0x8B,0x48,0x28 };
 
 typedef char (*IsOwnFn)(void *entity);
+typedef char *(*LocalPlayerFn)(char *tmp);
 static BYTE **g_hl_manager;
 static IsOwnFn g_is_own;
+static LocalPlayerFn g_local_player;   /* returns a pointer to the local player byte */
 
 /* finds the manager global and is_own; 0 (and a log line) if the game layout is not the expected one */
 static GOH_UNUSED int find_loot_globals(const char *who)
@@ -46,7 +53,18 @@ static GOH_UNUSED int find_loot_globals(const char *who)
   }
   g_hl_manager = (BYTE **) (flags + 7 + *(INT32 *) (flags + 3));
   g_is_own = (IsOwnFn) own;
+  g_local_player = (LocalPlayerFn) call_target(own + 0x1a);
   return 1;
+}
+
+/* a real exchange (examination) of the local player is in progress */
+static GOH_UNUSED int exam_in_progress(BYTE *gc)
+{
+  char tmp[8];
+  unsigned player = (unsigned char) *g_local_player(tmp);
+  BYTE *slots = *(BYTE **) (gc + 0x598), *slots_end = *(BYTE **) (gc + 0x5a0);
+  if (slots == NULL || slots + (player + 1) * 0x20 > slots_end) return 0;
+  return *(void **) (slots + player * 0x20 + 0x10) != NULL;
 }
 
 /* number of items in the entity's inventory box (0 without one) */
@@ -59,7 +77,8 @@ static GOH_UNUSED int box_items(BYTE *entity)
 }
 
 /* a lootable container while V is active: not hidden in the fog, not a human (corpses have their own
- * highlight), a non-empty inventory box, and, for actors (vehicles, guns), not the local player's own */
+ * highlight), a non-empty inventory box, and, for actors (vehicles, guns), empty (no crew) and not the local
+ * player's own */
 static GOH_UNUSED int loot_container_check(BYTE *entity, BYTE *actor, int hidden)
 {
   if (entity == NULL || hidden) return 0;
@@ -67,7 +86,7 @@ static GOH_UNUSED int loot_container_check(BYTE *entity, BYTE *actor, int hidden
   if (manager == NULL || manager[0x2b2] == 0) return 0;
   if (*(UINT32 *) (entity + 0x30) & 4) return 0;
   if (box_items(entity) == 0) return 0;
-  if (actor != NULL && g_is_own(entity)) return 0;
+  if (actor != NULL && ((*(UINT32 *) (entity + 0xdb4) & 0x100) || g_is_own(entity))) return 0;
   return 1;
 }
 
@@ -81,13 +100,14 @@ static GOH_UNUSED int loot_target(BYTE *target)
  * receive a release of the binding (GameControl+0x23c, a Windows virtual key in the low byte) although the key
  * is still down (seen as soon as the cursor reaches a container): the mode switches off.  A stub asks
  * v_release_hold() first and skips any release while the key is physically down; a real release, or the UI
- * toggle button, behaves as usual.  Both loot mods want this: the first one loaded installs it (named mutex). */
+ * toggle button, behaves as usual.  When a real exchange opens the release is kept, as in the game: the window
+ * takes the input, the later physical release would never reach the GameControl and V would stay on.  Both loot mods want this: the first one loaded installs it (named mutex). */
 static LONG g_hold_logged;
 static int v_release_hold(BYTE *gc)
 {
   UINT32 binding = *(UINT32 *) (gc + 0x23c);
   int vk = (int) (binding & 0xff);
-  if (vk == 0 || !(GetAsyncKeyState(vk) & 0x8000)) return 0;
+  if (vk == 0 || !(GetAsyncKeyState(vk) & 0x8000) || exam_in_progress(gc)) return 0;
   if (InterlockedIncrement(&g_hold_logged) <= 3) logf_("V release ignored (key still down, binding 0x%08x)", binding);
   return 1;
 }

@@ -20,7 +20,7 @@
 #include <stdio.h>
 #include <wchar.h>
 
-#include "../common/goh_version.h"
+#define GOH_LOADER_VERSION "1.0.1"   /* the loader's own version (release tag loader-v<version>) */
 
 /* ------------------------------------------------------------------ version.dll forwarding */
 #define VERSION_EXPORTS(X) \
@@ -125,7 +125,7 @@ BOOL WINAPI DllMain(HINSTANCE inst, DWORD reason, LPVOID reserved)
     logpath[MAX_PATH + 63] = 0;
     g_log = _wfopen(logpath, L"w");
   }
-  if (g_log) { fprintf(g_log, "GoH mod loader %s in %ls\n", GOH_MOD_VERSION, exe); fflush(g_log); }
+  if (g_log) { fprintf(g_log, "GoH mod loader %s in %ls\n", GOH_LOADER_VERSION, exe); fflush(g_log); }
   load_mods(inst);
   if (g_log) { fclose(g_log); g_log = NULL; }
   return TRUE;

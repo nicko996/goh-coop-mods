@@ -22,6 +22,7 @@
  * Log: %TEMP%\goh_inspect_preview_<exe name>.log
  */
 #define GOH_MOD_NAME "inspect_preview"
+#define GOH_MOD_VERSION "1.0.2"   /* this mod's own version (release tag <mod-id>-v<version>) */
 #include "../../common/goh_loot.h"
 
 typedef void *(*GetterFn)(void);
@@ -31,8 +32,6 @@ typedef void *(*CreateDialogFn)(void *name, void *parent);
 typedef void (*CameraFn)(void *camera, void *pos);
 typedef void *(*LayoutFn)(void *dialog, void *path, void *arg);
 typedef struct { const char *ptr; UINT64 pad, size, cap; } MsvcHeapString;
-typedef char *(*LocalPlayerFn)(char *tmp);
-static LocalPlayerFn g_local_player;   /* 0xa464f0, called by is_own (0x7fa430) at +0x1a */
 static MethodFn g_gc_tick_orig, g_exchange_close_orig, g_selected_unit_fn;
 static DeleteFn g_exchange_delete_orig;
 static GetterFn g_gui_parent;
@@ -87,14 +86,6 @@ static int preview_target_ok(BYTE *t)
     return vitality != NULL && (vitality[0x174] & 3) != 0 && box_items(t) > 0;
   }
   return loot_target(t);
-}
-static int exam_in_progress(BYTE *gc)
-{
-  char tmp[8];
-  unsigned player = (unsigned char) *g_local_player(tmp);
-  BYTE *slots = *(BYTE **) (gc + 0x598), *slots_end = *(BYTE **) (gc + 0x5a0);
-  if (slots == NULL || slots + (player + 1) * 0x20 > slots_end) return 0;
-  return *(void **) (slots + player * 0x20 + 0x10) != NULL;
 }
 static void preview_close(void)
 {
@@ -172,7 +163,6 @@ static const int SIG_BUILD_LAYOUT[] = { 0x4C,0x8D,0x45,0x67,0x48,0x8B,0xCF,0x48,
 static void install_grid_preview(void)
 {
   if (g_hl_manager == NULL || g_is_own == NULL) return;
-  g_local_player = (LocalPlayerFn) call_target((BYTE *) g_is_own + 0x1a);
   BYTE *su = NULL, *dc = NULL, *bc = NULL, *cam = NULL, *lay = NULL;
   int n1 = scan(SIG_SELECTED_UNIT, COUNT(SIG_SELECTED_UNIT), &su);
   int n2 = scan(SIG_DIALOG_CREATE, COUNT(SIG_DIALOG_CREATE), &dc);

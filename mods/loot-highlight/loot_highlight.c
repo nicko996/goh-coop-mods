@@ -3,7 +3,7 @@
  * =====================================================================
  *
  * The corpses highlight key (interface/corpses_highlight, V by default) also outlines lootable containers:
- * crates and other static inventories with items, and vehicles / guns that are not the local player's.
+ * crates and other static inventories with items, and empty vehicles / guns that are not the local player's.
  * They can be hovered and opened with the examine cursor while V is active.
  *
  * Client only, purely visual / UI: no desync, the other players do not need it.
@@ -16,10 +16,13 @@
  *    is redirected to loot_pick(): when the V pick finds nothing, the pick runs again as without highlight
  *    (flag cleared for the call); a loot container found that way is kept, anything else is dropped by
  *    resetting the context (0x793fb0) and redoing the V pick.
+ * 3) Examine first: in the V mode the cursor action (0xaf3000, also used on click) becomes examine on a loot
+ *    container whenever examine accepts it (empty vehicles otherwise offer "board").
  *
  * Log: %TEMP%\goh_loot_highlight_<exe name>.log
  */
 #define GOH_MOD_NAME "loot_highlight"
+#define GOH_MOD_VERSION "1.0.2"   /* this mod's own version (release tag <mod-id>-v<version>) */
 #include "../../common/goh_loot.h"
 
 static void *volatile g_hl_seen[24];
@@ -136,12 +139,79 @@ static void install_loot_pick(void)
           (unsigned long long) ((BYTE *) g_pick - g_base), (unsigned long long) (reset - g_base));
 }
 
+/* ------------------------------------------------------------------ examine first in the V mode */
+typedef void *(*CursorActionFn)(BYTE *gc, void *pos, BYTE *context);
+typedef char (*ActionTestFn)(void *action, char *player, void *unit, void *context);
+typedef void *(*SelectedUnitFn)(void *gc);
+static CursorActionFn g_cursor_action_orig;
+static void **g_examine_action;            /* global Interface::Action::e_examine * (client 0x15a0088) */
+static SelectedUnitFn g_selected_unit;     /* 0xaf7a90 */
+static LONG g_examine_logged;
+static void *loot_cursor_action(BYTE *gc, void *pos, BYTE *context)
+{
+  void *action = g_cursor_action_orig(gc, pos, context);
+  if (gc[0x2b2] == 0 || gc[0x2b0] != 0 || gc[0x2b1] != 0) return action;
+  void *examine = *g_examine_action;
+  if (examine == NULL || action == examine || !loot_target(*(BYTE **) (context + 0x20))) return action;
+  void *unit = g_selected_unit(gc);
+  char tmp[8];
+  if (unit == NULL || !((ActionTestFn) (*(void ***) examine)[15])(examine, g_local_player(tmp), unit, context)) return action;
+  if (InterlockedIncrement(&g_examine_logged) <= 5) {
+    char name[96];
+    logf_("examine first: %s replaced on %s", action ? rtti_name_of(action, name, sizeof name) : "null",
+          rtti_name_of(*(void **) (context + 0x20), name + 48, 48));
+  }
+  return examine;
+}
+/* GameControl cursor action (0xaf3000, used for the cursor and on click): prologue, the first 5 bytes are
+ * mov [rsp+20h],rbx (moved to the trampoline) */
+static const int SIG_CURSOR_ACTION[] = {
+  0x48,0x89,0x5C,0x24,0x20,0x55,0x56,0x57,0x41,0x54,0x41,0x55,0x48,0x8B,0xEC,0x48,0x83,0xEC,0x50,0x4C,0x8B,0x99,0xD8,0x00,0x00,0x00 };
+/* e_examine slot 15: mov rax,[manager]; cmp byte [rax+2B2h],0; jne; call; test al,al; jne;
+ * mov rcx,[manager]; mov rax,[e_examine] (+0x20) */
+static const int SIG_EXAMINE_GLOBAL[] = {
+  0x48,0x8B,0x05,W,W,W,W,0x80,0xB8,0xB2,0x02,0x00,0x00,0x00,0x75,0x20,0xE8,W,W,W,W,0x84,0xC0,0x75,0x17,
+  0x48,0x8B,0x0D,W,W,W,W,0x48,0x8B,0x05 };
+/* mov rdi,[rax]; mov rcx,r13; mov rsi,rax; call selected_unit; lea rcx,[rbp+30h]; mov rbx,rax; call local_player */
+static const int SIG_SELECTED_UNIT[] = {
+  0x48,0x8B,0x38,0x49,0x8B,0xCD,0x48,0x8B,0xF0,0xE8,W,W,W,W,0x48,0x8D,0x4D,0x30,0x48,0x8B,0xD8,0xE8 };
+/* In the V mode an empty vehicle offers "board" before "examine" (the cursor action chooser 0xb5ae50 tries
+ * actions by priority).  0xaf3000 is detoured: when V is active and the hovered entity is a loot container,
+ * examine replaces the chosen action if its own test (e_examine slot 15) accepts the target. */
+static void install_examine_first(void)
+{
+  BYTE *fn = NULL, *ex = NULL, *su = NULL;
+  int nf = scan(SIG_CURSOR_ACTION, COUNT(SIG_CURSOR_ACTION), &fn);
+  int ne = scan(SIG_EXAMINE_GLOBAL, COUNT(SIG_EXAMINE_GLOBAL), &ex);
+  int nu = scan(SIG_SELECTED_UNIT, COUNT(SIG_SELECTED_UNIT), &su);
+  if (nf != 1 || ne != 1 || nu != 1) {
+    logf_("ERROR: examine first: matches cursor action %d, examine %d, selected unit %d: nothing changed", nf, ne, nu);
+    return;
+  }
+  g_examine_action = (void **) (ex + 0x20 + 7 + *(INT32 *) (ex + 0x23));
+  g_selected_unit = (SelectedUnitFn) call_target(su + 9);
+  BYTE *page = alloc_near_module(0x40);
+  if (page == NULL) { logf_("ERROR: examine first: no memory near the module"); return; }
+  BYTE *tramp = page, *jump = page + 0x20;
+  memcpy(tramp, fn, 5);                                /* mov [rsp+20h],rbx */
+  abs_jmp(tramp + 5, fn + 5);
+  abs_jmp(jump, (void *) loot_cursor_action);
+  FlushInstructionCache(GetCurrentProcess(), page, 0x40);
+  g_cursor_action_orig = (CursorActionFn) tramp;
+  BYTE j[5] = { 0xE9, 0, 0, 0, 0 };
+  *(INT32 *) (j + 1) = rel32(fn + 5, jump);
+  if (write_code(fn, j, 5))
+    logf_("examine first: cursor action +0x%llx detoured, e_examine global +0x%llx", (unsigned long long) (fn - g_base),
+          (unsigned long long) ((BYTE *) g_examine_action - g_base));
+}
+
 static void mod_start(int kind)
 {
   if (kind != GOH_GAME) return;
   if (!find_loot_globals("loot highlight")) return;
   install_loot_highlight();
   install_loot_pick();
+  install_examine_first();
   install_v_release_hold();
 }
 

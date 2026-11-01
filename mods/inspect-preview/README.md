@@ -7,7 +7,7 @@ open it.
 - **Look only**: the grid is disabled, so nothing can be dragged out of it, and nothing is sent to the
   simulation.
 - It works with or without a selected unit. While a real exchange is open, no preview is shown.
-- **Corpses** work with this mod alone. For **crates and vehicles** also install
+- **Corpses** work with this mod alone. For **crates and empty vehicles** also install
   [Loot Highlight](../loot-highlight/README.md), because that mod lets the V mode hover containers.
 
 Client-side and purely UI: works in single player and in multiplayer, causes no desync, and the other players
@@ -36,6 +36,7 @@ Found by reverse engineering, client v1.067:
   vtable. The preview opens when the hovered entity (GameControl+0xe8) is a corpse with items or a loot
   container, and closes when the cursor leaves it. The dialog's close and destructor slots are wrapped, so a
   preview closed by the game itself is forgotten cleanly.
-- **V held down**: the same release fix as Loot Highlight (installed once if both mods are present).
+- **V held down**: the same release fix as Loot Highlight (installed once if both mods are present). When a
+  real exchange opens, V switches off as in the game.
 
 Log: `%TEMP%\goh_inspect_preview_call_to_arms.exe.log` (the first previews opened).
