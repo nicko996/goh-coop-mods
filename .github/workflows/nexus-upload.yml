@@ -71,7 +71,6 @@ jobs:
             echo "name=$name"
             echo "file_id=$file_id"
             echo "mod_id=$mod_id"
-            echo "changelog<<CHANGELOG_EOF"; cat changelog.txt; echo "CHANGELOG_EOF"
           } >> "$GITHUB_OUTPUT"
 
       - name: Download the release zip
@@ -79,6 +78,21 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release download "${{ steps.mod.outputs.tag }}" --pattern "${{ steps.mod.outputs.zip }}"
+
+      # The changelog goes in before the file: the mod page's Description / Logs "Changelogs" sections are rebuilt
+      # when the new file version arrives, and a changelog added afterwards (as the upload action does) only shows
+      # in the file's version popup.
+      - name: Add the changelog on Nexus Mods
+        if: steps.mod.outputs.skip == 'false'
+        env:
+          NEXUSMODS_API_KEY: ${{ secrets.NEXUSMODS_API_KEY }}
+          MOD_ID: ${{ steps.mod.outputs.mod_id }}
+          VERSION: ${{ steps.mod.outputs.version }}
+        run: |
+          jq -n --arg v "$VERSION" --rawfile c changelog.txt '{version: $v, changelog: ($c | rtrimstr("\n"))}' > changelog.json
+          curl -sSf -X POST -H "apikey: $NEXUSMODS_API_KEY" -H "Content-Type: application/json" \
+            --data @changelog.json "https://api.nexusmods.com/v3/mods/$MOD_ID/changelogs"
+          echo; echo "changelog added for $VERSION"
 
       - name: Upload to Nexus Mods
         if: steps.mod.outputs.skip == 'false'
@@ -92,5 +106,3 @@ jobs:
           category: main
           archive_existing_version: false
           update_mod_version: true
-          mod_id: ${{ steps.mod.outputs.mod_id }}
-          changelog: ${{ steps.mod.outputs.changelog }}
