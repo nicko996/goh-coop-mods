@@ -53,9 +53,15 @@ jobs:
             fi
           fi
           name=$(jq -r --arg m "$mod" '.[$m].name' .github/nexus-mods.json)
-          # changelog: the "## <name> <version> (...)" section of CHANGELOG.md, as plain text (Nexus shows no markdown)
-          awk -v head="## $name $version" 'index($0, head) == 1 { on = 1; next } on && /^## / { exit } on { print }' \
-            CHANGELOG.md | sed '/./,$!d; s/\*\*//g; s/`//g' > changelog.txt
+          # changelog: the "## <name> <version> (...)" section of CHANGELOG.md as plain text, one line per bullet
+          # (Nexus shows every line as an entry and no markdown)
+          awk -v head="## $name $version" '
+            index($0, head) == 1 { on = 1; next }
+            on && /^## / { exit }
+            on && /^- / { if (item != "") print item; item = substr($0, 3); next }
+            on && /^  +[^ ]/ && item != "" { sub(/^ +/, ""); item = item " " $0; next }
+            on && /[^ ]/ { if (item != "") print item; item = ""; print }
+            END { if (item != "") print item }' CHANGELOG.md | sed 's/\*\*//g; s/`//g' > changelog.txt
           if [ ! -s changelog.txt ]; then echo "$name $version" > changelog.txt; fi
           {
             echo "skip=false"
