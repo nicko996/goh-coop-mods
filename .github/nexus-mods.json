@@ -1,0 +1,7 @@
+{
+  "_comment": "Nexus Mods page of each mod, used by .github/workflows/nexus-upload.yml. mod_id = the mod's unique id (API v3: GET /v3/games/calltoarmsgatesofhellostfront/mods/<page number>). file_id = the Nexus file that receives a new version at every GitHub release of the mod; when empty, the workflow uses the page's only active file.",
+  "loot-highlight": { "name": "Loot Highlight", "page": "https://www.nexusmods.com/calltoarmsgatesofhellostfront/mods/22", "mod_id": "21788369092630", "file_id": "" },
+  "inspect-preview": { "name": "Inspect Preview", "page": "https://www.nexusmods.com/calltoarmsgatesofhellostfront/mods/23", "mod_id": "21788369092631", "file_id": "" },
+  "coop-game-speed": { "name": "Coop Game Speed", "page": "https://www.nexusmods.com/calltoarmsgatesofhellostfront/mods/24", "mod_id": "21788369092632", "file_id": "" },
+  "coop-checkpoint": { "name": "Coop Checkpoint", "page": "https://www.nexusmods.com/calltoarmsgatesofhellostfront/mods/25", "mod_id": "21788369092633", "file_id": "" }
+}

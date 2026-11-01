@@ -118,6 +118,16 @@ concerns both loot mods. Release tags are per mod, `<mod id>-v<version>` (e.g. `
 `loader-v<version>`. `goh-all-mods.zip` lists every version in `goh_mods_readme/VERSION.txt`. Up to v1.0.1 the
 repository used a single version and tag for everything.
 
+### Nexus Mods
+
+Each mod also has a page on [Nexus Mods](https://www.nexusmods.com/calltoarmsgatesofhellostfront/mods/22)
+(pages 22-25, listed in `.github/nexus-mods.json`). Publishing a GitHub release `<mod>-v<version>` runs
+`.github/workflows/nexus-upload.yml`. It uploads that release's `goh-<mod>-v<version>.zip` as a new version of
+the mod's main file on Nexus, updates the page version, and adds the mod's section of `CHANGELOG.md` as the Nexus
+changelog. Older versions stay listed. It needs the repository secret `NEXUSMODS_API_KEY` (the personal API key
+from Nexus Mods › Site preferences › API keys). To upload an existing release again, run the workflow by hand
+(*Actions › Upload to Nexus Mods › Run workflow*) with its tag.
+
 ## Repository layout
 
 ```
@@ -130,6 +140,7 @@ mods/inspect-preview/   Inspect Preview DLL + README
 tools/package.py        release zips
 build.ps1               builds every DLL with Zig
 CHANGELOG.md            what changed in each mod version
+.github/                Nexus Mods upload workflow + the Nexus page of each mod
 ```
 
 ## Disclaimer

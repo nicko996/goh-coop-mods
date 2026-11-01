@@ -1,0 +1,90 @@
+# Publishes a mod's GitHub release on its Nexus Mods page.
+#
+# Trigger: a published release whose tag is <mod>-v<version> (e.g. loot-highlight-v1.0.2), or a manual run with
+# such a tag. The zip goh-<mod>-v<version>.zip attached to the release is uploaded as a new version of the Nexus
+# file listed in .github/nexus-mods.json (or, without a file_id there, the page's only active file), with the
+# mod's section of CHANGELOG.md as the Nexus changelog.
+# Older tags (v1.0.0, v1.0.1, one version for everything) and the loader (loader-v*) are skipped.
+#
+# Needs the repository secret NEXUSMODS_API_KEY (Nexus Mods > Site preferences > API keys).
+name: Upload to Nexus Mods
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag to upload (<mod>-v<version>)
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Find the mod and its Nexus file
+        id: mod
+        env:
+          TAG: ${{ github.event.release.tag_name || inputs.tag }}
+          NEXUSMODS_API_KEY: ${{ secrets.NEXUSMODS_API_KEY }}
+        run: |
+          if [[ ! "$TAG" =~ ^([a-z-]+)-v([0-9]+\.[0-9]+\.[0-9]+)$ ]]; then
+            echo "tag $TAG is not <mod>-v<version>: nothing to upload"; echo "skip=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          mod="${BASH_REMATCH[1]}"; version="${BASH_REMATCH[2]}"
+          if [ "$mod" = "loader" ] || ! jq -e --arg m "$mod" 'has($m)' .github/nexus-mods.json > /dev/null; then
+            echo "$mod has no Nexus page: nothing to upload"; echo "skip=true" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          mod_id=$(jq -r --arg m "$mod" '.[$m].mod_id' .github/nexus-mods.json)
+          file_id=$(jq -r --arg m "$mod" '.[$m].file_id' .github/nexus-mods.json)
+          if [ -z "$NEXUSMODS_API_KEY" ]; then echo "::error::the repository secret NEXUSMODS_API_KEY is not set"; exit 1; fi
+          if [ -z "$file_id" ]; then
+            # no file_id configured: the page's only active file
+            curl -sSf -H "apikey: $NEXUSMODS_API_KEY" "https://api.nexusmods.com/v3/mods/$mod_id/files" > files.json
+            jq -r '.data.mod_files[] | "\(.id)  \(.name)  active=\(.is_active)"' files.json
+            file_id=$(jq -r '[.data.mod_files[] | select(.is_active)] | if length == 1 then .[0].id else "" end' files.json)
+            if [ -z "$file_id" ]; then
+              echo "::error::$mod: the Nexus page has no single active file; set file_id in .github/nexus-mods.json"; exit 1
+            fi
+          fi
+          name=$(jq -r --arg m "$mod" '.[$m].name' .github/nexus-mods.json)
+          # changelog: the "## <name> <version> (...)" section of CHANGELOG.md, as plain text (Nexus shows no markdown)
+          awk -v head="## $name $version" 'index($0, head) == 1 { on = 1; next } on && /^## / { exit } on { print }' \
+            CHANGELOG.md | sed '/./,$!d; s/\*\*//g; s/`//g' > changelog.txt
+          if [ ! -s changelog.txt ]; then echo "$name $version" > changelog.txt; fi
+          {
+            echo "skip=false"
+            echo "tag=$TAG"
+            echo "zip=goh-$mod-v$version.zip"
+            echo "version=$version"
+            echo "name=$name"
+            echo "file_id=$file_id"
+            echo "mod_id=$mod_id"
+            echo "changelog<<CHANGELOG_EOF"; cat changelog.txt; echo "CHANGELOG_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Download the release zip
+        if: steps.mod.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release download "${{ steps.mod.outputs.tag }}" --pattern "${{ steps.mod.outputs.zip }}"
+
+      - name: Upload to Nexus Mods
+        if: steps.mod.outputs.skip == 'false'
+        uses: Nexus-Mods/upload-action@98532f7670c27cbecc78fae03fa3e278147827e2   # v1.0.0-beta.11
+        with:
+          api_key: ${{ secrets.NEXUSMODS_API_KEY }}
+          file_id: ${{ steps.mod.outputs.file_id }}
+          filename: ${{ steps.mod.outputs.zip }}
+          version: ${{ steps.mod.outputs.version }}
+          display_name: ${{ steps.mod.outputs.name }} ${{ steps.mod.outputs.version }}
+          category: main
+          archive_existing_version: false
+          update_mod_version: true
+          mod_id: ${{ steps.mod.outputs.mod_id }}
+          changelog: ${{ steps.mod.outputs.changelog }}
