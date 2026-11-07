@@ -18,11 +18,16 @@
  * cursor/hover update, main thread), after the hovered entity (GameControl+0xe8) is known.  A real exchange in
  * progress (GameControl+0x598 [local player] +0x10) suppresses the preview.  The grid, its bar and the dialog
  * are disabled after the build (look only: no drag & drop out of the preview).
+ * Creating the dialog activates it (vfunc 7, 0xaa3cb0): activation releases every mouse button (0x4c94a0) and
+ * every key (0x4c5540) still held and broadcasts the event 0x412, whose listener clears GameControl's camera key
+ * bits (0xb01d80): the keyboard camera, rotation with the middle button and V stopped until pressed again.  The
+ * preview is look only and needs no focus: its activation is skipped (exchange vtable slot 7 while creating), and
+ * so is the deactivation the close does (0xa9f9c0: flag +0x48 bit 3 set -> cleared + vfunc 7), same broadcast.
  *
  * Log: %TEMP%\goh_inspect_preview_<exe name>.log
  */
 #define GOH_MOD_NAME "inspect_preview"
-#define GOH_MOD_VERSION "1.0.2"   /* this mod's own version (release tag <mod-id>-v<version>) */
+#define GOH_MOD_VERSION "1.0.3"   /* this mod's own version (release tag <mod-id>-v<version>) */
 #include "../../common/goh_loot.h"
 
 typedef void *(*GetterFn)(void);
@@ -40,7 +45,10 @@ static MethodFn g_exchange_build;
 static CameraFn g_build_camera_orig;
 static LayoutFn g_build_layout_orig;
 static void *g_exchange_vtable;
-static int g_building;
+static int g_building, g_creating;
+static BYTE *g_closing;   /* preview dialog being closed */
+static MethodFn g_exchange_activate_orig;
+static LONG g_activate_logged;
 static BYTE *g_build_layout;
 static BYTE *g_preview, *g_preview_target, *g_preview_buttons;
 static int g_preview_failures;
@@ -59,6 +67,13 @@ static void enable_widget(BYTE *w, int enable)
   UINT32 *flags = (UINT32 *) (w + 0x48);
   if (((*flags & 4) != 0) != (enable != 0)) { *flags ^= 4u; ((MethodFn) (*(void ***) w)[6])(w); }
 }
+/* the preview is never activated nor deactivated: both release the held keys / buttons and stop the keyboard camera */
+static void *exchange_activate(BYTE *w)
+{
+  if (!g_creating && w != g_preview && w != g_closing) return g_exchange_activate_orig(w);
+  if (InterlockedIncrement(&g_activate_logged) <= 3) logf_("grid preview: activation skipped (held keys and camera kept)");
+  return NULL;
+}
 static void build_camera(void *camera, void *pos)
 {
   if (!g_building) g_build_camera_orig(camera, pos);
@@ -71,13 +86,21 @@ static void *build_layout(void *dialog, void *path, void *arg)
 }
 static void *exchange_close(BYTE *w)
 {
-  if (w == g_preview) { show_widget(g_preview_buttons, 1); g_preview = NULL; g_preview_buttons = NULL; w[0x21c] = 0; }
-  return g_exchange_close_orig(w);
+  if (w != g_preview) return g_exchange_close_orig(w);
+  show_widget(g_preview_buttons, 1); g_preview = NULL; g_preview_buttons = NULL; w[0x21c] = 0;
+  g_closing = w;
+  void *r = g_exchange_close_orig(w);
+  g_closing = NULL;
+  return r;
 }
 static void *exchange_delete(BYTE *w, unsigned flags)
 {
-  if (w == g_preview) { show_widget(g_preview_buttons, 1); g_preview = NULL; g_preview_buttons = NULL; }
-  return g_exchange_delete_orig(w, flags);
+  if (w != g_preview) return g_exchange_delete_orig(w, flags);
+  show_widget(g_preview_buttons, 1); g_preview = NULL; g_preview_buttons = NULL;
+  g_closing = w;
+  void *r = g_exchange_delete_orig(w, flags);
+  g_closing = NULL;
+  return r;
 }
 static int preview_target_ok(BYTE *t)
 {
@@ -96,16 +119,20 @@ static void preview_close(void)
   g_preview_tick = GetTickCount64();
   show_widget(buttons, 1);   /* the button panel is shared by every exchange dialog */
   w[0x21c] = 0;
+  g_closing = w;
   g_exchange_close_orig(w);
+  g_closing = NULL;
 }
 static void preview_open(BYTE *unit, BYTE *target)
 {
   static const char name[] = "inventory_exchange";
   MsvcHeapString str = { name, 0, sizeof name - 1, 0x1f };
+  g_creating = 1;
   BYTE *w = (BYTE *) g_create_dialog(&str, g_gui_parent());
   if (w == NULL || *(void **) w != g_exchange_vtable) {
     logf_("ERROR: grid preview: dialog %p is not an inventory exchange", (void *) w);
     g_preview_failures++;
+    g_creating = 0;
     return;
   }
   *(BYTE **) (w + 0x208) = unit;
@@ -114,7 +141,7 @@ static void preview_open(BYTE *unit, BYTE *target)
   *(UINT32 *) (w + 0x48) |= 8;   /* "already active": the build skips activating the dialog (that ends the V mode) */
   g_building = 1; g_build_layout = NULL; g_preview_tick = GetTickCount64();
   g_exchange_build(w);
-  g_building = 0;
+  g_building = 0; g_creating = 0;
   show_widget(*(BYTE **) (w + 0x1f8), 0);
   show_widget(g_build_layout, 0);
   /* look only: the grid must not be a source of drag & drop (items would move without an exchange) */
@@ -190,6 +217,7 @@ static void install_grid_preview(void)
       !redirect_call(lay_call, (void *) build_layout, (void **) &g_build_layout_orig) ||
       !replace_slot(ex_vt, 62, (void *) exchange_close, (void **) &g_exchange_close_orig) ||
       !replace_slot(ex_vt, 0, (void *) exchange_delete, (void **) &g_exchange_delete_orig) ||
+      !replace_slot(ex_vt, 7, (void *) exchange_activate, (void **) &g_exchange_activate_orig) ||
       !replace_slot(gc_vt, 13, (void *) gc_tick, (void **) &g_gc_tick_orig)) {
     logf_("ERROR: grid preview: patching failed (partially installed)");
     return;

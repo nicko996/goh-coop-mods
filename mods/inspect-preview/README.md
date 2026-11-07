@@ -32,6 +32,9 @@ Found by reverse engineering, client v1.067:
 - The unit's bar is hidden, and the target's grid, its bar and the dialog are disabled.
 - The dialog is marked as already active before the build, so it doesn't take the focus. Taking the focus
   would end the V mode.
+- The dialog is never activated or deactivated (its vfunc 7, 0xaa3cb0, is skipped while the preview is created
+  and closed). Activation releases every held key and mouse button and broadcasts an event (0x412) whose
+  listener resets the keyboard camera (0xb01d80): the camera stopped when the preview opened or closed.
 - It's driven by `eGameControl` virtual method 13 (0xaf1720, cursor/hover update, main thread), replaced in the
   vtable. The preview opens when the hovered entity (GameControl+0xe8) is a corpse with items or a loot
   container, and closes when the cursor leaves it. The dialog's close and destructor slots are wrapped, so a

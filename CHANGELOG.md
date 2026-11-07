@@ -3,8 +3,15 @@
 Every mod has its own version since 2026-11-01. Release tags are `<mod>-v<version>` (and `loader-v<version>` for
 `version.dll`). Before that, the whole repository used a single version (`v1.0.0`, `v1.0.1`).
 
-Current versions: Coop Game Speed 1.0.1, Coop Checkpoint 1.0.1, Loot Highlight 1.0.2, Inspect Preview 1.0.2,
+Current versions: Coop Game Speed 1.0.1, Coop Checkpoint 1.0.1, Loot Highlight 1.0.2, Inspect Preview 1.0.3,
 loader 1.0.1.
+
+## Inspect Preview 1.0.3 (2026-11-07)
+
+- The camera **no longer stops** when the preview opens or closes while you move it with the keyboard (WASD) or
+  rotate it with the middle mouse button. The game activated the preview window like any dialog, and activating
+  or deactivating a window releases every held key and mouse button and resets the keyboard camera. The preview
+  is look only and is no longer activated; every other window behaves as before.
 
 ## Loot Highlight 1.0.2 (2026-11-01)
 
