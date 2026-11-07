@@ -3,8 +3,17 @@
 Every mod has its own version since 2026-11-01. Release tags are `<mod>-v<version>` (and `loader-v<version>` for
 `version.dll`). Before that, the whole repository used a single version (`v1.0.0`, `v1.0.1`).
 
-Current versions: Coop Game Speed 1.0.1, Coop Checkpoint 1.0.1, Loot Highlight 1.0.2, Inspect Preview 1.0.3,
+Current versions: Coop Game Speed 1.0.1, Coop Checkpoint 1.0.2, Loot Highlight 1.0.2, Inspect Preview 1.0.3,
 loader 1.0.1.
+
+## Coop Checkpoint 1.0.2 (2026-11-07)
+
+- Works together with **other mods that replace the mission files**, for example a mod that adds a skirmish
+  doctrine. Before, whichever of the two mods came last in the mod list hid the other one, so the **Save** /
+  **Reload** buttons disappeared. The data-mod generator has a new option, `--on-top-of <mod folder>`: it builds
+  those missions from the other mod's files, so they contain both mods. Enable `coop_checkpoint` after that mod
+  in the mod list and regenerate it when that mod changes (see the mod's README).
+- The checkpoint DLL is unchanged apart from its version number.
 
 ## Inspect Preview 1.0.3 (2026-11-07)
 

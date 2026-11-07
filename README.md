@@ -103,7 +103,8 @@ python mods/coop-checkpoint/data/make_coop_checkpoint_mod.py "<game folder>" [<o
 ```
 
 It needs Python 3.8+ and optionally Pillow for the button icons (`pip install pillow`; without it the vanilla
-"tactical" icon is used). Regenerate it after a game update that changes the missions.
+"tactical" icon is used). Regenerate it after a game update that changes the missions. With other mods that replace the same
+missions, add `--on-top-of <mod folder>` (see the [Coop Checkpoint README](mods/coop-checkpoint/README.md)).
 
 ### Release zips
 

@@ -22,7 +22,7 @@
  * Log: %TEMP%\goh_coop_checkpoint_<exe name>.log
  */
 #define GOH_MOD_NAME "coop_checkpoint"
-#define GOH_MOD_VERSION "1.0.1"   /* this mod's own version (release tag <mod-id>-v<version>) */
+#define GOH_MOD_VERSION "1.0.2"   /* this mod's own version (release tag <mod-id>-v<version>) */
 #include "../../common/goh_common.h"
 
 /* ------------------------------------------------------------------ coop checkpoint: save */

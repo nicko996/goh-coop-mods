@@ -19,6 +19,21 @@ must match anyway to join).
    `binaries\x64\version.dll`, `binaries\x64\goh_mods\coop_checkpoint.dll`, `mods\coop_checkpoint\`.
 2. In the game: *Options › Mods* → enable **coop_checkpoint**.
 
+### With other mods that change the missions
+
+Mods that replace the same mission files (`map/single/**/0.mi`, for example a mod that adds a skirmish
+doctrine) conflict with `coop_checkpoint`: the game mounts the enabled mods in the order of the mod list in
+the profile (`options.set`, `{mods ...}`) and the last one wins, so either the **Save** / **Reload** buttons
+or the other mod's changes disappear. To use both, regenerate the data mod on top of the other mod and enable
+`coop_checkpoint` **after** it (lower in the list):
+
+```
+python mods/coop-checkpoint/data/make_coop_checkpoint_mod.py "<game folder>" --on-top-of <other mod folder>
+```
+
+The missions of that mod then contain both mods' changes (`mods\coop_checkpoint\BUILT_ON_TOP_OF.txt` lists
+them). Regenerate whenever the other mod changes. In coop every player needs the same files and the same order.
+
 ## Use
 
 In a campaign or skirmish mission open the **reinforcement panel**. There are two new buttons:
