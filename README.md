@@ -129,6 +129,10 @@ changelog. Older versions stay listed. It needs the repository secret `NEXUSMODS
 from Nexus Mods › Site preferences › API keys). To upload an existing release again, run the workflow by hand
 (*Actions › Upload to Nexus Mods › Run workflow*) with its tag.
 
+The page descriptions are edited through `.github/workflows/nexus-description.yml` (manual run, same secret):
+`get` saves a mod's current BBCode description as a workflow artifact, `update` sends
+`.github/nexus-descriptions/<mod>.bbcode` as the new description (API v3 `PATCH /v3/mods/{id}`).
+
 ## Repository layout
 
 ```
