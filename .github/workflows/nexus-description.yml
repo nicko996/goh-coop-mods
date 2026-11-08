@@ -1,0 +1,70 @@
+# Reads or updates a mod's Nexus Mods page description (API v3 PATCH /v3/mods/{id}).
+#
+# Manual run only. Inputs: the mod id (key of .github/nexus-mods.json) and the action:
+# - get:    saves the page's current summary and BBCode description as the artifact nexus-description-<mod>.
+# - update: sends .github/nexus-descriptions/<mod>.bbcode as the page description (and
+#           .github/nexus-descriptions/<mod>.summary.txt as the summary, if that file exists).
+#
+# Needs the repository secret NEXUSMODS_API_KEY (Nexus Mods > Site preferences > API keys).
+name: Nexus Mods description
+
+on:
+  workflow_dispatch:
+    inputs:
+      mod:
+        description: Mod id (loot-highlight, inspect-preview, coop-game-speed, coop-checkpoint)
+        required: true
+      action:
+        description: get or update
+        required: true
+        default: get
+        type: choice
+        options: [get, update]
+
+permissions:
+  contents: read
+
+jobs:
+  description:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read or update the description
+        env:
+          MOD: ${{ inputs.mod }}
+          ACTION: ${{ inputs.action }}
+          NEXUSMODS_API_KEY: ${{ secrets.NEXUSMODS_API_KEY }}
+        run: |
+          if [ -z "$NEXUSMODS_API_KEY" ]; then echo "::error::the repository secret NEXUSMODS_API_KEY is not set"; exit 1; fi
+          mod_id=$(jq -r --arg m "$MOD" '.[$m].mod_id // empty' .github/nexus-mods.json)
+          if [ -z "$mod_id" ]; then echo "::error::$MOD is not in .github/nexus-mods.json"; exit 1; fi
+          mkdir -p out
+          if [ "$ACTION" = "get" ]; then
+            curl -sSf -H "apikey: $NEXUSMODS_API_KEY" "https://api.nexusmods.com/v3/mods/$mod_id" > out/mod.json
+            jq -r '.data.summary // empty' out/mod.json > "out/$MOD.summary.txt"
+            jq -r '.data.description' out/mod.json > "out/$MOD.bbcode"
+            jq -r '.data | "\(.name) \(.version)"' out/mod.json
+            wc -c "out/$MOD.bbcode"
+          else
+            src=".github/nexus-descriptions/$MOD.bbcode"
+            if [ ! -s "$src" ]; then echo "::error::$src is missing or empty"; exit 1; fi
+            if [ -s ".github/nexus-descriptions/$MOD.summary.txt" ]; then
+              jq -n --rawfile d "$src" --rawfile s ".github/nexus-descriptions/$MOD.summary.txt" \
+                '{description: ($d | rtrimstr("\n")), summary: ($s | rtrimstr("\n"))}' > body.json
+            else
+              jq -n --rawfile d "$src" '{description: ($d | rtrimstr("\n"))}' > body.json
+            fi
+            code=$(curl -sS -o out/response.txt -w '%{http_code}' -X PATCH \
+              -H "apikey: $NEXUSMODS_API_KEY" -H "Content-Type: application/json" \
+              --data @body.json "https://api.nexusmods.com/v3/mods/$mod_id")
+            cat out/response.txt; echo
+            if [ "$code" != "204" ]; then echo "::error::PATCH returned HTTP $code"; exit 1; fi
+            echo "description of $MOD updated"
+          fi
+
+      - uses: actions/upload-artifact@v4
+        if: inputs.action == 'get'
+        with:
+          name: nexus-description-${{ inputs.mod }}
+          path: out/${{ inputs.mod }}*
