@@ -19,24 +19,13 @@ must match anyway to join).
    `binaries\x64\version.dll`, `binaries\x64\goh_mods\coop_checkpoint.dll`, `mods\coop_checkpoint\`.
 2. In the game: *Options › Mods* → enable **coop_checkpoint**.
 
-### With other mods that change the missions
-
-Mods that replace the same mission files (`map/single/**/0.mi`, for example a mod that adds a skirmish
-doctrine) conflict with `coop_checkpoint`: the game mounts the enabled mods in the order of the mod list in
-the profile (`options.set`, `{mods ...}`) and the last one wins, so either the **Save** / **Reload** buttons
-or the other mod's changes disappear. To use both, regenerate the data mod on top of the other mod and enable
-`coop_checkpoint` **after** it (lower in the list):
-
-```
-python mods/coop-checkpoint/data/make_coop_checkpoint_mod.py "<game folder>" --on-top-of <other mod folder>
-```
-
-The missions of that mod then contain both mods' changes (`mods\coop_checkpoint\BUILT_ON_TOP_OF.txt` lists
-them). Regenerate whenever the other mod changes. In coop every player needs the same files and the same order.
+Works with other mods that change the missions (for example a new skirmish doctrine), in any mod-list order:
+the buttons are added to whatever mission the game loads.
 
 ## Use
 
-In a campaign or skirmish mission open the **reinforcement panel**. There are two new buttons:
+In a **multiplayer** (coop) campaign or skirmish mission open the **reinforcement panel**. There are two new
+buttons (single-player missions don't get them):
 
 - **Save** (10 s cooldown).
 - **Reload**. Any player can press it. After about 2 s the host's game leaves the match, waits for
@@ -95,7 +84,10 @@ host's local dedicated server) runs the DLL.
 ## Files
 
 - `coop_checkpoint.c`: the DLL.
-- `data/make_coop_checkpoint_mod.py`: generates the `coop_checkpoint` data mod from the installed game.
-  It patches the 74 `map/single/**/0.mi` missions (buttons, events declared in `{Helpers}`, triggers, the mission's
-  own `{"autosave"}` calls), and writes localisation (English, Italian) and button icons.
+- `mission_patch.h`: the mission patch the DLL applies in memory to every `map/single/**/*.mi` it reads (buttons,
+  events declared in `{Helpers}`, triggers, the mission's own `{"autosave"}` calls). The hook sits in the game's
+  SDL text reader (`eSDLReader`, after the whole file is read into a string and before the lexer starts). The
+  dedicated server always patches; the game client only while a network session exists.
+- `data/make_coop_checkpoint_mod.py`: generates the `coop_checkpoint` data mod (localisation in English and Italian,
+  button icons). Its `patch()` is the reference for `mission_patch.h` (`tools/test_mission_patch.py`).
 - Logs: `%TEMP%\goh_coop_checkpoint_call_to_arms.exe.log`, `%TEMP%\goh_coop_checkpoint_call_to_arms_server.exe.log`.

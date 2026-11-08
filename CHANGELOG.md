@@ -9,11 +9,13 @@ loader 1.0.1.
 ## Coop Checkpoint 1.0.2 (2026-11-07)
 
 - Works together with **other mods that replace the mission files**, for example a mod that adds a skirmish
-  doctrine. Before, whichever of the two mods came last in the mod list hid the other one, so the **Save** /
-  **Reload** buttons disappeared. The data-mod generator has a new option, `--on-top-of <mod folder>`: it builds
-  those missions from the other mod's files, so they contain both mods. Enable `coop_checkpoint` after that mod
-  in the mod list and regenerate it when that mod changes (see the mod's README).
-- The checkpoint DLL is unchanged apart from its version number.
+  doctrine, in any mod-list order. Before, the data mod shipped its own copy of every mission, and whichever mod
+  came last in the mod list hid the other one, so the **Save** / **Reload** buttons disappeared. Now the DLL adds
+  the buttons and their scripts to each mission while the game reads it, whatever mod the mission comes from.
+  The data mod only holds the button icons and texts.
+- **Save** / **Reload** appear only in multiplayer. Single-player missions are left as they are.
+- `tools/test_mission_patch.py` checks that the DLL's mission patch gives exactly the same text as the
+  generator's reference `patch()` on every mission.
 
 ## Inspect Preview 1.0.3 (2026-11-07)
 

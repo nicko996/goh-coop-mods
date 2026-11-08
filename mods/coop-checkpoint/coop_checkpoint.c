@@ -1031,8 +1031,119 @@ static DWORD WINAPI watchdog_thread(LPVOID unused)
   return 0;
 }
 
+/* ------------------------------------------------------------------ mission patch at load time */
+/*
+ * The Save / Reload buttons are added to the mission text when the game reads it, so they work on top of any
+ * mod that replaces the missions (the data mod only ships icons and texts).  Every SDL text file (.mi, .set,
+ * .def ...) goes through eSDLReader (client 0x66a9f0, same code in the server): it reads the whole file into the
+ * std::string at source+0x98 (assign(size + 1, 0) at 0x66bcc0, then the stream read) and then calls the
+ * lexer init (0x66b290); the file path is the std::string at source+0xc0.  The init call is redirected: for
+ * every .mi under map/single/ the text is replaced by mp_patch() of it (same output as the old generated data mod),
+ * using the game's own assign() so the game frees it with its own allocator.  Every peer patches the same file
+ * the same way, so the coop scripts stay identical.  Checkpoint archives (mission.scn) are never touched.
+ *
+ * Multiplayer only: the dedicated server (it only exists in network games) always patches; the game client
+ * patches only while a network session exists (is_network_session: the session global != 0, the same test
+ * that turns {"autosave"} off in coop), so single player missions have no Save / Reload buttons.  A coop
+ * client reads the mission after joining, so it and the server patch the same missions.
+ */
+#include "mission_patch.h"
+
+typedef unsigned long long (*LexInitFn)(void *source, void *arg);
+typedef void *(*StrAssignFn)(void *str, unsigned long long n, char ch);
+static LexInitFn g_lex_init;
+static StrAssignFn g_str_assign;
+static BoolFn g_patch_is_network;   /* client: is_network_session; NULL on the server = always patch */
+static int g_patch_client;
+static volatile LONG g_missions_patched, g_paths_logged;
+
+static int is_mission_path(const char *p)
+{
+  char low[512];
+  size_t n = strlen(p);
+  if (n >= sizeof low) return 0;
+  for (size_t i = 0; i <= n; i++) {
+    char c = p[i];
+    low[i] = (char) (c == '\\' ? '/' : (c >= 'A' && c <= 'Z' ? c + 32 : c));
+  }
+  return n > 3 && strcmp(low + n - 3, ".mi") == 0 && strstr(low, "map/single/") != NULL;
+}
+
+static unsigned long long on_sdl_source(BYTE *source, void *arg)
+{
+  char path[512];
+  msvc_cstr((const MsvcString *) (source + 0xc0), path, sizeof path);
+  if (is_mission_path(path) && g_patch_client && !g_patch_is_network()) {
+    logf_("mission patch: '%s' left as is (not a network game: no Save / Reload in single player)", path);
+  } else if (is_mission_path(path)) {
+    MsvcString *text = (MsvcString *) (source + 0x98);
+    const char *data = text->cap > 15 ? text->u.ptr : text->u.buf;
+    size_t len = (size_t) text->size;
+    if (len > 0 && data[len - 1] == 0) len--;        /* the reader keeps one trailing NUL in the string */
+    size_t out_len = 0;
+    const char *why = NULL;
+    char *patched = mp_patch(data, len, &out_len, &why);
+    if (patched) {
+      g_str_assign(text, out_len + 1, 0);
+      char *dst = text->cap > 15 ? text->u.ptr : text->u.buf;
+      if ((size_t) text->size == out_len + 1) {
+        memcpy(dst, patched, out_len);
+        LONG n = InterlockedIncrement(&g_missions_patched);
+        logf_("mission patch: '%s' %llu -> %llu bytes [#%ld]", path, (unsigned long long) len,
+              (unsigned long long) out_len, (long) n);
+      } else {
+        logf_("ERROR: mission patch: '%s' string assign failed (size %llu)", path, (unsigned long long) text->size);
+      }
+      free(patched);
+    } else {
+      logf_("mission patch: '%s' left as is (%s)", path, why ? why : "?");
+    }
+  } else if (InterlockedIncrement(&g_paths_logged) <= 3) {
+    logf_("mission patch: SDL file '%s' (not a mission)", path);
+  }
+  return g_lex_init(source, arg);
+}
+
+/* eSDLReader source ctor: mov esi,[rbp+28h]; xor r8d,r8d; sub esi,[rbp+30h]; mov rcx,rdi; lea eax,[rsi+1];
+ * movsxd rdx,eax; call <assign>; cmp qword [rdi+18h],0Fh; jbe; mov rdi,[rdi]; mov r8d,esi; mov rdx,rdi;
+ * mov rcx,rbp; call <stream read>; mov rdx,[rsp+60h]; mov rcx,rbx; call <lexer init> */
+static const int SIG_SDL_SOURCE[] = {
+  0x8B,0x75,0x28,0x45,0x33,0xC0,0x2B,0x75,0x30,0x48,0x8B,0xCF,0x8D,0x46,0x01,0x48,0x63,0xD0,0xE8,W,W,W,W,
+  0x48,0x83,0x7F,0x18,0x0F,0x76,0x03,0x48,0x8B,0x3F,0x44,0x8B,0xC6,0x48,0x8B,0xD7,0x48,0x8B,0xCD,0xE8,W,W,W,W,
+  0x48,0x8B,0x54,0x24,0x60,0x48,0x8B,0xCB,0xE8 };
+static void install_mission_patch(int kind)
+{
+  BYTE *at = NULL;
+  if (kind == GOH_GAME) {
+    /* is_network_session = the first call of eCmd_autosave::execute */
+    BYTE *fn = NULL;
+    int k = scan(SIG_AUTOSAVE_EXEC, COUNT(SIG_AUTOSAVE_EXEC), &fn);
+    if (k != 1) { logf_("ERROR: mission patch: autosave command signature found %d times: buttons disabled", k); return; }
+    g_patch_is_network = (BoolFn) (fn + 0x16 + *(INT32 *) (fn + 0x12));
+    g_patch_client = 1;
+  }
+  int n = scan(SIG_SDL_SOURCE, COUNT(SIG_SDL_SOURCE), &at);
+  if (n != 1) { logf_("ERROR: mission patch: SDL reader signature found %d times: buttons disabled", n); return; }
+  BYTE *assign_call = at + 0x12, *init_call = at + 0x37;
+  g_str_assign = (StrAssignFn) (assign_call + 5 + *(INT32 *) (assign_call + 1));
+  g_lex_init = (LexInitFn) (init_call + 5 + *(INT32 *) (init_call + 1));
+  BYTE *stub = alloc_near_module(0x40);
+  if (stub == NULL) { logf_("ERROR: mission patch: no memory near the module"); return; }
+  stub[0] = 0xFF; stub[1] = 0x25; *(INT32 *) (stub + 2) = 0; *(void **) (stub + 6) = (void *) on_sdl_source;
+  FlushInstructionCache(GetCurrentProcess(), stub, 0x40);
+  BYTE c[5] = { 0xE8, 0, 0, 0, 0 };
+  *(INT32 *) (c + 1) = rel32(init_call + 5, stub);
+  if (!write_code(init_call, c, 5)) { logf_("ERROR: mission patch: cannot patch the SDL reader"); return; }
+  logf_("mission patch: SDL reader hooked at +0x%llx (assign +0x%llx, lexer init +0x%llx, %s)",
+        (unsigned long long) (init_call - g_base), (unsigned long long) ((BYTE *) g_str_assign - g_base),
+        (unsigned long long) ((BYTE *) g_lex_init - g_base), g_patch_client ? "network games only" : "always");
+  if (g_patch_client)
+    logf_("mission patch: is_network_session +0x%llx", (unsigned long long) ((BYTE *) g_patch_is_network - g_base));
+}
+
 static void mod_start(int kind)
 {
+  install_mission_patch(kind);
   if (kind == GOH_GAME) {
     install_checkpoint("coop_ckpt");
     install_save_render_skip();

@@ -95,16 +95,16 @@ uses GCC inline assembly for its export stubs.
 
 ### Coop Checkpoint data mod
 
-The `coop_checkpoint` data mod (buttons and mission scripts for the 74 campaign and skirmish missions) is
-generated from the installed game's own resource packs, so it isn't stored in the repository:
+The `coop_checkpoint` data mod (button icons and texts; the DLL adds the buttons to the missions while the game
+reads them) is generated from the installed game's own resource packs, so it isn't stored in the repository:
 
 ```
 python mods/coop-checkpoint/data/make_coop_checkpoint_mod.py "<game folder>" [<output mods folder>]
 ```
 
-It needs Python 3.8+ and optionally Pillow for the button icons (`pip install pillow`; without it the vanilla
-"tactical" icon is used). Regenerate it after a game update that changes the missions. With other mods that replace the same
-missions, add `--on-top-of <mod folder>` (see the [Coop Checkpoint README](mods/coop-checkpoint/README.md)).
+It needs Python 3.8+ and Pillow for the button icons (`pip install pillow`). After changing the mission patch,
+run `python tools/test_mission_patch.py "<game folder>" [<mod folder> ...]` (needs zig): it compares the DLL's
+patch (`mods/coop-checkpoint/mission_patch.h`) with the generator's reference `patch()` on every mission.
 
 ### Release zips
 

@@ -1,33 +1,24 @@
 """
-Coop Checkpoint - mod generator for Call to Arms: Gates of Hell
-===============================================================
+Coop Checkpoint - data-mod generator for Call to Arms: Gates of Hell
+====================================================================
 
-Builds the data mod  coop_checkpoint  which adds "Save" and "Reload" buttons to the
-reinforcement panel of every campaign and skirmish mission (map/single/**/0.mi), read from the game's own
-resource packs (so the output always matches the installed game version).
+Builds the data mod  coop_checkpoint: the Save / Reload button icons, their texts and the mod descriptor.
 
-The button runs the vanilla mission-script command {"autosave"} inside the deterministic mission
-script, i.e. in the same simulation step on every player's PC.  In coop the command does nothing on
-its own: the version.dll of this project (binaries/x64) turns it into an immediate save of the
-current game state, written on every PC that has the DLL goh_mods/coop_checkpoint.dll (file "coop_ckpt.sav"
-in the profile save folder; the local server writes "coop_ckpt_srv.sav").
+Since Coop Checkpoint 1.0.2 the mission scripts are NOT in the data mod any more: the DLL
+goh_mods/coop_checkpoint.dll adds the buttons and their triggers to every map/single/**/*.mi while the game
+reads it (mission_patch.h), so the mod works on top of any other mod that replaces the missions, in any
+mod-list order.  patch() below is the reference implementation of that in-memory patch:
+tools/test_mission_patch.py checks that the DLL produces exactly the same text on every mission.
 
-Every event used by the mission script is declared in {Helpers}: without that the dedicated server
-crashes (eHelperReinforcement).
+The buttons run the vanilla mission-script command {"autosave"} inside the deterministic mission script, i.e.
+in the same simulation step on every player's PC; the DLL turns it into an immediate save on every peer.
+Every event used by the mission script is declared in {Helpers}: without that the dedicated server crashes
+(eHelperReinforcement).
 
 Usage
-    python make_coop_checkpoint_mod.py "<game_dir>" ["<output_mods_dir>"] [--on-top-of <mod folder> ...]
+    python make_coop_checkpoint_mod.py "<game_dir>" ["<output_mods_dir>"]
 The mod is written to <output_mods_dir>/coop_checkpoint (default: <game_dir>/mods/coop_checkpoint).
-
-Other mods that replace the same mission files
-    The game mounts the enabled mods in the order of the "mods" list in the profile's options.set and the
-    last one wins for a file that several mods contain.  A mod that replaces map/single/**/0.mi (for
-    example a new skirmish doctrine) therefore either hides the Save / Reload buttons or is hidden by
-    them.  --on-top-of <mod folder> (a folder name in <game_dir>/mods, or a path; repeatable, later ones
-    win) builds those missions from that mod's 0.mi instead of the vanilla one, so the generated file
-    contains both mods.  coop_checkpoint must then be enabled AFTER that mod (it must come later in the
-    mod list), and it must be regenerated whenever that mod changes.
-Requirements: Python 3.8+, Pillow (button icons; without it the vanilla "tactical" icon is used).
+Requirements: Python 3.8+, Pillow (button icons).
 """
 import glob
 import io
@@ -230,8 +221,7 @@ def write_icons(game_dir, out):
     try:
         from PIL import Image, ImageDraw, ImageFont
     except ImportError:
-        print("  Pillow not installed: falling back to the vanilla 'tactical' icon")
-        return "tactical"
+        sys.exit("Pillow is required for the button icons: pip install pillow")
     scene = zipfile.ZipFile(os.path.join(game_dir, "resource", "interface", "scene.pak"))
     dst = os.path.join(out, "resource", "interface", "scene", "unit_icon")
     os.makedirs(dst, exist_ok=True)
@@ -263,7 +253,6 @@ def write_icons(game_dir, out):
     prev = Image.new("RGBA", (300, 170), (40, 40, 40, 255))
     prev.paste(ic, ((300 - ic.width) // 2, (170 - ic.height) // 2), ic)
     prev.convert("RGB").save(os.path.join(out, "preview.jpg"), quality=90)
-    return None
 
 
 MOD_INFO = """{mod
@@ -289,76 +278,29 @@ Save: every PC saves the battle state at the same simulation step
 Reload: every PC arms the reload; the host's game leaves the match and starts the same
   mission again, and every PC loads its checkpoint instead of the mission start.
 
+This folder holds only the button icons and texts: the DLL adds the buttons to every mission while the
+game loads it, so the mod works together with other mods that change the missions, in any order.
+
 Logs: %TEMP%\goh_coop_checkpoint_<exe name>.log
 """
 
 
-def overlay_missions(game_dir, missions, base_mods):
-    """Replace the vanilla missions with the 0.mi files of the given mods (later mods win)."""
-    used = {}
-    for mod in base_mods:
-        root = os.path.join(game_dir, "mods", mod)
-        if not os.path.isfile(os.path.join(root, "mod.info")):
-            root = mod          # a path to the mod folder
-        res = os.path.join(root, "resource")
-        if not os.path.isfile(os.path.join(root, "mod.info")) or not os.path.isdir(res):
-            raise RuntimeError("--on-top-of: no mod with mod.info and resource/ at " + root)
-        if os.path.basename(os.path.normpath(root)) == MOD_NAME:
-            raise RuntimeError("--on-top-of: cannot build on top of %s itself" % MOD_NAME)
-        n = 0
-        for p in glob.glob(os.path.join(res, "map", "single", "**", "*.mi"), recursive=True):
-            key = os.path.relpath(p, res).replace(os.sep, "/")
-            if key not in missions:
-                continue        # an include or a mission the game doesn't have: not ours to patch
-            with open(p, "rb") as f:
-                missions[key] = f.read()
-            used[key] = os.path.basename(os.path.normpath(root))
-            n += 1
-        print("  on top of %s: %d missions" % (os.path.basename(os.path.normpath(root)), n))
-    return used
-
-
-def build(game_dir, mods_dir=None, base_mods=()):
+def build(game_dir, mods_dir=None):
     out = os.path.join(mods_dir or os.path.join(game_dir, "mods"), MOD_NAME)
-    missions = load_missions(game_dir)
-    used = overlay_missions(game_dir, missions, base_mods)
     if os.path.isdir(out):
         shutil.rmtree(out)
-    for path, data in sorted(missions.items()):
-        dst = os.path.join(out, "resource", *path.split("/"))
-        os.makedirs(os.path.dirname(dst), exist_ok=True)
-        with open(dst, "wb") as f:
-            f.write(patch(data))
+    os.makedirs(out)
     write_localization(out)
-    fallback = write_icons(game_dir, out)
-    if fallback:
-        for p in glob.glob(os.path.join(out, "resource", "map", "**", "*.mi"), recursive=True):
-            with open(p, "rb") as f:
-                t = f.read()
-            t = re.sub(rb"\{image coop_ckpt_[a-z]+\}", b"{image " + fallback.encode() + b"}", t)
-            with open(p, "wb") as f:
-                f.write(t)
+    write_icons(game_dir, out)
     with open(os.path.join(out, "mod.info"), "wb") as f:
         f.write(MOD_INFO.replace("\n", CRLF).encode("utf-8"))
     with open(os.path.join(out, "README.txt"), "wb") as f:
         f.write(README.replace("\n", CRLF).encode("utf-8"))
-    if used:
-        with open(os.path.join(out, "BUILT_ON_TOP_OF.txt"), "wb") as f:
-            f.write(CRLF.join(["Missions built on top of other mods: enable %s AFTER them in the mod list,"
-                               % MOD_NAME, "and regenerate it whenever they change.", ""] +
-                              ["%s  <-  %s" % (k, v) for k, v in sorted(used.items())] + [""]).encode("utf-8"))
-    print("[%s] missions patched: %d (%d on top of other mods)" % (MOD_NAME, len(missions), len(used)))
+    print("[%s] data mod written (icons, texts; the DLL patches the missions)" % MOD_NAME)
     print("  -> " + out)
 
 
 if __name__ == "__main__":
-    args, base = [], []
-    it = iter(sys.argv[1:])
-    for a in it:
-        if a == "--on-top-of":
-            base.append(next(it, None) or sys.exit(__doc__))
-        else:
-            args.append(a)
-    if len(args) not in (1, 2):
+    if len(sys.argv) not in (2, 3):
         sys.exit(__doc__)
-    build(args[0], args[1] if len(args) == 2 else None, base)
+    build(sys.argv[1], sys.argv[2] if len(sys.argv) == 3 else None)
