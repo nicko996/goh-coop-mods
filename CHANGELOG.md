@@ -14,6 +14,8 @@ loader 1.0.1.
   the buttons and their scripts to each mission while the game reads it, whatever mod the mission comes from.
   The data mod only holds the button icons and texts.
 - **Save** / **Reload** appear only in multiplayer. Single-player missions are left as they are.
+- Upgrading: **delete the old `mods\coop_checkpoint` folder** before extracting the zip. Otherwise the mission
+  copies of 1.0.1 (`resource\map`) stay there and keep hiding the missions of other mods.
 - `tools/test_mission_patch.py` checks that the DLL's mission patch gives exactly the same text as the
   generator's reference `patch()` on every mission.
 
