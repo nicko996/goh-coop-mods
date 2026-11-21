@@ -21,7 +21,12 @@ Historical Doctrine 1.0.0, loader 1.0.1.
 
 - Works together with other DLL mods that change the missions while the game reads them (for example
   **Historical Doctrine**): the hook on the game's text reader is now shared (`common/goh_sdl_hook.h`), so the
-  mods chain instead of one overwriting the other at startup. Nothing else changed.
+  mods chain instead of one overwriting the other at startup.
+- Works with **Gates of Hell 1.069**. On 1.069 pressing **Save** crashed the host's dedicated server: the game
+  renumbered its save events (0x1011/0x1012 became 0x1013/0x1014), so the DLL no longer found the screenshot
+  listener it has to switch off on the server, and the server tried to load a screenshot it never wrote. The DLL
+  now reads the event ids from the game's code. The master quant scheduler start (needed by **Reload**) and the
+  script-context getter also have 1.069 signatures now. 1.067 keeps working.
 
 ## Coop Checkpoint 1.0.2 (2026-11-07)
 

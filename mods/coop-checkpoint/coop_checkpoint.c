@@ -230,14 +230,28 @@ static void disable_save_screenshot(void)
  * screenshot, which the server never wrote -> null dereference while loading the bitmap.
  *   mov r8d,[rdx+8]; mov rdi,rcx; sub r8d,1011h; je <create>; cmp r8d,1; jne <end>
  * With the je removed, 0x1011 falls to "cmp r8d,1; jne end" and is ignored; 0x1012 (end) finds no
- * texture and returns. */
+ * texture and returns.
+ * The event ids are renumbered between game versions (1.067: 0x1011 / 0x1012, 1.069: 0x1013 / 0x1014): the id
+ * byte is a wildcard and the id in use is read from the instruction. */
 static const int SIG_SCREENSHOT_VIEW[] = {
-  0x44,0x8B,0x42,0x08,0x48,0x8B,0xF9,0x41,0x81,0xE8,0x11,0x10,0x00,0x00,0x74,W,0x41,0x83,0xF8,0x01,0x0F,0x85 };
+  0x44,0x8B,0x42,0x08,0x48,0x8B,0xF9,0x41,0x81,0xE8,W,0x10,0x00,0x00,0x74,W,0x41,0x83,0xF8,0x01,0x0F,0x85 };
+static DWORD g_save_begin_event = 0x1011;   /* cmSC_SaveStateBegin; End = Begin + 1 */
+
+static int find_screenshot_view(BYTE **at)
+{
+  int n = scan(SIG_SCREENSHOT_VIEW, COUNT(SIG_SCREENSHOT_VIEW), at);
+  if (n == 1) {
+    g_save_begin_event = *(DWORD *) (*at + 10);
+    logf_("checkpoint: save state events 0x%lx / 0x%lx", (unsigned long) g_save_begin_event,
+          (unsigned long) g_save_begin_event + 1);
+  }
+  return n;
+}
 
 static void disable_screenshot_view(void)
 {
   BYTE *at = NULL;
-  int n = scan(SIG_SCREENSHOT_VIEW, COUNT(SIG_SCREENSHOT_VIEW), &at);
+  int n = find_screenshot_view(&at);
   static const BYTE NOP2[2] = { 0x66, 0x90 };
   if (n == 1 && at[14] == 0x74 && write_code(at + 14, NOP2, 2))
     logf_("checkpoint: screenshot view ignores save events (+0x%llx)", (unsigned long long) (at + 14 - g_base));
@@ -268,13 +282,13 @@ static int screenshot_view_filter(void *self, void *event)
   if (g_full_scripts <= 0) return 0;
   DWORD id = 0;
   safe_read((BYTE *) event + 8, &id, sizeof id);
-  return id == 0x1011 || id == 0x1012;
+  return id == g_save_begin_event || id == g_save_begin_event + 1;
 }
 static void install_save_render_skip(void)
 {
   BYTE *at = NULL, *v = NULL;
   int n = scan(SIG_SAVE_SCREENSHOT, COUNT(SIG_SAVE_SCREENSHOT), &at);
-  int m = scan(SIG_SCREENSHOT_VIEW, COUNT(SIG_SCREENSHOT_VIEW), &v);
+  int m = find_screenshot_view(&v);
   static const BYTE view_prologue[6] = { 0x40, 0x57, 0x48, 0x83, 0xEC, 0x50 };   /* push rdi; sub rsp,50h */
   if (n != 1 || at[7] != 0xE8 || m != 1 || memcmp(v - 6, view_prologue, 6) != 0) {
     logf_("ERROR: checkpoint: screenshot sites not found (%d, %d): client checkpoints keep the screenshot", n, m);
@@ -566,8 +580,27 @@ static int on_trigger_serialize(void *trigger, void *unused)
 }
 static const int SIG_TRIGGER_SER[] = {
   0x48,0x89,0x5C,0x24,0x08,0x55,0x48,0x8B,0xEC,0x48,0x83,0xEC,0x60,0x83,0x3D,W,W,W,W,0x01,0x48,0x8B,0xD9,0x0F,0x84 };
+/* TLS getter: mov ecx,[tls_index]; mov rax,gs:[58h]; mov edx,<slot>; mov rax,[rax+rcx*8]; mov rax,[rax+rdx]; ret.
+ * Three such getters exist; the SDL context slot is 0x40b0 in 1.067 and 0x42f8 in 1.069. */
 static const int SIG_SDL_CONTEXT[] = {
-  0x8B,0x0D,W,W,W,W,0x65,0x48,0x8B,0x04,0x25,0x58,0x00,0x00,0x00,0xBA,0xB0,0x40,0x00,0x00,0x48,0x8B,0x04,0xC8,0x48,0x8B,0x04,0x02,0xC3 };
+  0x8B,0x0D,W,W,W,W,0x65,0x48,0x8B,0x04,0x25,0x58,0x00,0x00,0x00,0xBA,W,W,0x00,0x00,0x48,0x8B,0x04,0xC8,0x48,0x8B,0x04,0x02,0xC3 };
+static const DWORD SDL_CONTEXT_SLOTS[] = { 0x40b0, 0x42f8 };
+
+static BYTE *find_sdl_context_getter(void)
+{
+  BYTE *from = g_text;
+  SIZE_T left = g_text_size;
+  for (int k = 0; k < 8; k++) {
+    BYTE *at = NULL;
+    if (scan_in(from, left, SIG_SDL_CONTEXT, COUNT(SIG_SDL_CONTEXT), &at) == 0) break;
+    DWORD slot = *(DWORD *) (at + 16);
+    for (size_t i = 0; i < COUNT(SDL_CONTEXT_SLOTS); i++)
+      if (slot == SDL_CONTEXT_SLOTS[i]) return at;
+    left -= (SIZE_T) (at + 1 - from);
+    from = at + 1;
+  }
+  return NULL;
+}
 
 /* Server quant scheduler (Multiplayer::eQuantServerJob) start: resets the last scheduled quant
  * (+0x40) to 0.  After a reload it must start from the checkpoint time instead. */
@@ -590,6 +623,10 @@ static int on_scheduler_start(void *job, void *unused)
 static const int SIG_SCHEDULER_START[] = {
   0x48,0x89,0x5C,0x24,0x10,0x57,0x48,0x83,0xEC,0x20,0x66,0xC7,0x41,0x21,0x00,0x00,0x33,0xC0,0x48,0x89,
   0x41,0x30,0x48,0x8B,0xF9,0x89,0x41,0x40,0xC6,0x41,0x20,0x01 };
+/* 1.069: the state flags at +0x20 are set with one dword store; +0x40..+0x4c are unchanged */
+static const int SIG_SCHEDULER_START_1069[] = {
+  0x48,0x89,0x5C,0x24,0x10,0x57,0x48,0x83,0xEC,0x20,0xC7,0x41,0x20,0x01,0x00,0x00,0x00,0x33,0xC0,0x48,0x89,
+  0x41,0x30,0x48,0x8B,0xF9,0x89,0x41,0x40,0x48,0xC7,0x41,0x38,0x00,0x00,0x80,0x3F,0xC7,0x41,0x44,0x32,0x00,0x00,0x00 };
 
 static int on_scene_load(void *scene, void *paths)
 {
@@ -911,8 +948,8 @@ static void install_reload(const char *role, int is_server)
   if (n != 1) { logf_("ERROR: reload: achievement command signature matches %d", n); return; }
   install_entry_hook(ach, 7, (EntryHandler) on_achievement, &g_achievement_orig, "reload: achievement command");
   {
-    BYTE *gt = NULL, *ts = NULL;
-    if (scan(SIG_SDL_CONTEXT, COUNT(SIG_SDL_CONTEXT), &gt) == 1 && scan(SIG_TRIGGER_SER, COUNT(SIG_TRIGGER_SER), &ts) == 1) {
+    BYTE *gt = find_sdl_context_getter(), *ts = NULL;
+    if (gt != NULL && scan(SIG_TRIGGER_SER, COUNT(SIG_TRIGGER_SER), &ts) == 1) {
       g_sdl_context = (CtxGetterFn) gt;
       install_entry_hook(ts, 5, (EntryHandler) on_trigger_serialize, (void **) &g_trigger_ser_orig,
                          "reload: trigger serializer (full scripts in checkpoints)");
@@ -923,6 +960,7 @@ static void install_reload(const char *role, int is_server)
   if (is_server) {
     BYTE *st = NULL;
     n = scan(SIG_SCHEDULER_START, COUNT(SIG_SCHEDULER_START), &st);
+    if (n == 0) n = scan(SIG_SCHEDULER_START_1069, COUNT(SIG_SCHEDULER_START_1069), &st);
     if (n != 1) { logf_("ERROR: reload: scheduler start signature matches %d", n); return; }
     install_entry_hook(st, 5, (EntryHandler) on_scheduler_start, (void **) &g_scheduler_start_orig,
                        "reload: master quant scheduler start");
