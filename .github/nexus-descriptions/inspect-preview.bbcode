@@ -1,0 +1,34 @@
+[size=4][b]Description[/b][/size]
+Hold [b]V[/b] (the corpses highlight key) and hover a corpse or a container: a preview of its [b]inventory grid[/b] appears, the same grid as in the exchange screen. You can see what's inside without sending a soldier over to open it.
+
+Client-side and purely UI: works in single player and multiplayer, causes no desync, and the other players don't need it.
+
+[size=4][b]Installation instructions[/b][/size]
+[list=1]
+[*]Download the zip from the Files tab.[/*]
+[*]Extract it into the game folder, the one that contains [b]binaries[/b] and [b]mods[/b], e.g. [i]C:\Program Files (x86)\Steam\steamapps\common\Call to Arms - Gates of Hell[/i]. If Windows asks, overwrite [b]version.dll[/b]: it's the same file in all my mods. [b]If you use GOHSE[/b] (Gates of Hell Script Extender), don't overwrite it: keep GOHSE's version.dll, and the script the zip puts in [i]gohse/mods/goh_dll_mods[/i] loads the mod.[/*]
+[*]Start the game, hold [b]V[/b] and hover a corpse.[/*]
+[/list]After installing you should have:
+[code]<game>\binaries\x64\version.dll
+<game>\binaries\x64\goh_mods\inspect_preview.dll
+<game>\gohse\mods\goh_dll_mods\   (used only with GOHSE)[/code][b]Uninstall:[/b] delete [i]binaries\x64\goh_mods\inspect_preview.dll[/i]. If you have none of my other mods installed, also delete [i]binaries\x64\version.dll[/i], the [i]goh_mods[/i] folder and [i]gohse\mods\goh_dll_mods[/i].
+
+[size=4][b]Main features[/b][/size]
+[list]
+[*]Hold V and hover a corpse or container to see its inventory grid.[/*]
+[*][b]Look only:[/b] the grid is disabled, nothing can be dragged out of it and nothing is sent to the simulation.[/*]
+[*]The preview closes as soon as the cursor leaves the target. While a real exchange is open, no preview is shown.[/*]
+[*]Fixes V randomly turning off while the key is still held down.[/*]
+[*]The game files on disk are never modified: the DLL patches the game in memory only. If a game update changes the code it needs, it skips that part and the game runs unmodded.[/*]
+[/list]
+[size=4][b]Requirements[/b][/size]
+[list]
+[*]Call to Arms - Gates of Hell: Ostfront, x64, tested on game versions [b]1.067.0[/b] and [b]1.069.0[/b].[/*]
+[*]Works with or without [url=https://github.com/nature2468/gohse]GOHSE[/url], the Gates of Hell Script Extender (from the 1.0.4 version).[/*]
+[*]No other mods needed for [b]corpses[/b]. The mod loader ([b]version.dll[/b]) is included in the zip.[/*]
+[*]To preview [b]crates and vehicles[/b] too, also install [b][url=https://www.nexusmods.com/calltoarmsgatesofhellostfront/mods/22]Loot Highlight[/url][/b], because that mod lets the V mode hover containers.[/*]
+[/list]Troubleshooting log: [i]%TEMP%\goh_inspect_preview_call_to_arms.exe.log[/i]
+
+[size=4][b]Source code[/b][/size]
+Open source, built from a single C file. Source, build instructions and my other Gates of Hell mods (Coop Game Speed, Coop Checkpoint, Loot Highlight): [url=https://github.com/nicko996/goh-coop-mods]github.com/nicko996/goh-coop-mods[/url]
+
