@@ -17,7 +17,7 @@ Historical Doctrine 1.0.0, loader 1.0.1.
   reference `apply()`, on the game's missions and on other mods' copies of them. `tools/test_hd_coop_order.py`
   checks that Historical Doctrine + Coop Checkpoint give the same mission whichever patches first.
 
-## Coop Checkpoint 1.0.3 (unreleased)
+## Coop Checkpoint 1.0.3 (2026-11-21)
 
 - Works together with other DLL mods that change the missions while the game reads them (for example
   **Historical Doctrine**): the hook on the game's text reader is now shared (`common/goh_sdl_hook.h`), so the
