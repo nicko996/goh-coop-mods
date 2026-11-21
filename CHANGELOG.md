@@ -3,8 +3,25 @@
 Every mod has its own version since 2026-11-01. Release tags are `<mod>-v<version>` (and `loader-v<version>` for
 `version.dll`). Before that, the whole repository used a single version (`v1.0.0`, `v1.0.1`).
 
-Current versions: Coop Game Speed 1.0.1, Coop Checkpoint 1.0.2, Loot Highlight 1.0.2, Inspect Preview 1.0.3,
-loader 1.0.1.
+Current versions: Coop Game Speed 1.0.1, Coop Checkpoint 1.0.3, Loot Highlight 1.0.2, Inspect Preview 1.0.3,
+Historical Doctrine 1.0.0, loader 1.0.1.
+
+## Historical Doctrine 1.0.0 (unreleased)
+
+- First release: the DLL edition of the Workshop mod *Historical Doctrine for Skirmishes*. It adds the Historical
+  doctrine to the 20 skirmish missions in memory while the game reads them, so it works together with other mods
+  that change those missions (for example **Spawn Menu**), in any mod-list order. Don't use it together with the
+  Workshop version.
+- Together with Coop Checkpoint it needs **Coop Checkpoint 1.0.3** or newer (both use the shared text-reader hook).
+- `tools/test_hd_patch.py` checks that the DLL's patch code gives exactly the same text as the generator's
+  reference `apply()`, on the game's missions and on other mods' copies of them. `tools/test_hd_coop_order.py`
+  checks that Historical Doctrine + Coop Checkpoint give the same mission whichever patches first.
+
+## Coop Checkpoint 1.0.3 (unreleased)
+
+- Works together with other DLL mods that change the missions while the game reads them (for example
+  **Historical Doctrine**): the hook on the game's text reader is now shared (`common/goh_sdl_hook.h`), so the
+  mods chain instead of one overwriting the other at startup. Nothing else changed.
 
 ## Coop Checkpoint 1.0.2 (2026-11-07)
 

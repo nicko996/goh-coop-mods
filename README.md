@@ -9,6 +9,7 @@ Install only the ones you want.
 | [Coop Checkpoint](mods/coop-checkpoint/README.md) | **Save** / **Reload** buttons for mid-mission saves in coop | **Every player** in the match |
 | [Loot Highlight](mods/loot-highlight/README.md) | The **V** key also outlines crates, empty vehicles and other containers with items, and you can open them from there | Only you (client-side, visual) |
 | [Inspect Preview](mods/inspect-preview/README.md) | With **V** held down, hovering a corpse or container shows its inventory grid, look only | Only you (client-side, visual) |
+| [Historical Doctrine](mods/historical-doctrine/README.md) | A **Historical** doctrine in the 20 skirmish missions (only the units that were really there), compatible with other mission mods such as Spawn Menu | **Every player** in the match |
 
 The mods don't depend on each other. Inspect Preview works on corpses by itself. To preview crates and
 vehicles too, install Loot Highlight as well, because that mod lets V hover them.
@@ -88,7 +89,9 @@ zig cc -target x86_64-windows-gnu -shared -O2 -s -Wall -Wextra -o <out>.dll <sou
 | `goh_mods/inspect_preview.dll` | `mods/inspect-preview/inspect_preview.c` |
 
 Shared code is in `common/`: `goh_common.h` (signature scanning, code patching, hooks, logging, DLL entry),
-and `goh_loot.h` (container filter shared by the two loot mods).
+`goh_loot.h` (container filter shared by the two loot mods) and `goh_sdl_hook.h` (the hook on the game's text
+reader for mods that change files while they load, such as Coop Checkpoint and Historical Doctrine: every mod
+that uses it installs under the same mutex and calls the previous one, so they chain).
 
 A mingw-w64 GCC works too (`x86_64-w64-mingw32-gcc -shared -O2 -s ...`). MSVC doesn't, because the loader
 uses GCC inline assembly for its export stubs.

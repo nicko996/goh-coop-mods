@@ -20,7 +20,9 @@ must match anyway to join).
 2. In the game: *Options › Mods* → enable **coop_checkpoint**.
 
 Works with other mods that change the missions (for example a new skirmish doctrine), in any mod-list order:
-the buttons are added to whatever mission the game loads.
+the buttons are added to whatever mission the game loads. From 1.0.3 the hook on the game's text reader is the
+shared one of `common/goh_sdl_hook.h`, so it also works together with DLL mods that patch the missions in memory,
+such as [Historical Doctrine](../historical-doctrine/README.md).
 
 ## Use
 

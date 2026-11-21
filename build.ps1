@@ -18,7 +18,8 @@ $targets = @(
     @{ src = "mods\coop-game-speed\coop_game_speed.c"; dll = Join-Path $mods "coop_game_speed.dll"; libs = @("-luser32") },
     @{ src = "mods\coop-checkpoint\coop_checkpoint.c"; dll = Join-Path $mods "coop_checkpoint.dll"; libs = @("-luser32") },
     @{ src = "mods\loot-highlight\loot_highlight.c";   dll = Join-Path $mods "loot_highlight.dll";  libs = @("-luser32") },
-    @{ src = "mods\inspect-preview\inspect_preview.c"; dll = Join-Path $mods "inspect_preview.dll"; libs = @("-luser32") }
+    @{ src = "mods\inspect-preview\inspect_preview.c"; dll = Join-Path $mods "inspect_preview.dll"; libs = @("-luser32") },
+    @{ src = "mods\historical-doctrine\historical_doctrine.c"; dll = Join-Path $mods "historical_doctrine.dll"; libs = @("-luser32") }
 )
 foreach ($t in $targets) {
     $src = Join-Path $root $t.src
@@ -35,5 +36,20 @@ if ($Install -ne "") {
     New-Item -ItemType Directory -Force (Join-Path $dst "goh_mods") | Out-Null
     Copy-Item (Join-Path $out "version.dll") $dst -Force
     Copy-Item (Join-Path $mods "*.dll") (Join-Path $dst "goh_mods") -Force
+    # Historical Doctrine: mission patches next to the DLL + data mod (made by mods\historical-doctrine\data\make_hd_data.py)
+    $hdp = Join-Path $mods "historical_doctrine"
+    if (Test-Path $hdp) {
+        $hdDst = Join-Path $dst "goh_mods\historical_doctrine"
+        if (Test-Path $hdDst) { Remove-Item -Recurse -Force $hdDst }
+        Copy-Item -Recurse $hdp $hdDst
+    } else {
+        Write-Host "note: no Historical Doctrine patches in build (run make_hd_data.py): its DLL will do nothing"
+    }
+    $hdData = Join-Path $root "build\data\historical_doctrine"
+    if (Test-Path $hdData) {
+        $modDst = Join-Path $Install "mods\historical_doctrine"
+        if (Test-Path $modDst) { Remove-Item -Recurse -Force $modDst }
+        Copy-Item -Recurse $hdData $modDst
+    }
     Write-Host "installed into $dst (all mods; delete the ones you do not want from goh_mods)"
 }

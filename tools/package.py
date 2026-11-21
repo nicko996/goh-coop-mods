@@ -2,11 +2,15 @@
 Builds the release zips from the output of build.ps1 and of the coop_checkpoint data-mod generator.
 
 Usage
-    python tools/package.py "<game_dir>"
+    python tools/package.py "<game_dir>" [<Historical Doctrine source mod folder>]
+
+The Historical Doctrine source is the full Workshop data mod (default <game_dir>/mods/3838675132): its mission
+files are turned into the DLL's patches by mods/historical-doctrine/data/make_hd_data.py.
 
 Steps
  1. expects build/binaries/x64/version.dll and build/binaries/x64/goh_mods/*.dll (run build.ps1 first)
- 2. generates the coop_checkpoint data mod from the game's resource packs into build/data
+ 2. generates the coop_checkpoint data mod from the game's resource packs into build/data, and the Historical
+    Doctrine patches (build/binaries/x64/goh_mods/historical_doctrine) and data mod (build/data)
  3. writes build/release/goh-<mod>-v<mod version>.zip for every mod, plus goh-all-mods.zip (its
     goh_mods_readme/VERSION.txt lists the version of every mod and of the loader)
 
@@ -33,7 +37,11 @@ MODS = {
     "coop-checkpoint": ("coop_checkpoint.dll", "mods/coop-checkpoint", "coop_checkpoint.c", "coop_checkpoint"),
     "loot-highlight": ("loot_highlight.dll", "mods/loot-highlight", "loot_highlight.c", None),
     "inspect-preview": ("inspect_preview.dll", "mods/inspect-preview", "inspect_preview.c", None),
+    "historical-doctrine": ("historical_doctrine.dll", "mods/historical-doctrine", "historical_doctrine.c",
+                            "historical_doctrine"),
 }
+# extra folders next to the DLLs (binaries/x64/goh_mods/<folder>)
+EXTRA = {"historical-doctrine": "historical_doctrine"}
 
 
 def read_version(path, macro):
@@ -65,20 +73,25 @@ def write_zip(path, mod_ids):
             z.write(os.path.join(ROOT, folder, "README.md"), "goh_mods_readme/%s.md" % mod_id)
             if data:
                 add_tree(z, os.path.join(DATA, data), "mods/" + data)
+            if mod_id in EXTRA:
+                add_tree(z, os.path.join(BIN, "goh_mods", EXTRA[mod_id]), "binaries/x64/goh_mods/" + EXTRA[mod_id])
         lines = ["%s v%s" % (mod_id, mod_version(mod_id)) for mod_id in mod_ids] + ["loader v%s" % loader_version()]
         z.writestr("goh_mods_readme/VERSION.txt", "\r\n".join(lines) + "\r\n")
     print("%-40s %6.1f MB" % (os.path.basename(path), os.path.getsize(path) / 1e6))
 
 
 def main():
-    if len(sys.argv) != 2:
+    if len(sys.argv) not in (2, 3):
         sys.exit(__doc__)
     game_dir = sys.argv[1]
+    hd_source = sys.argv[2] if len(sys.argv) == 3 else os.path.join(game_dir, "mods", "3838675132")
     for dll in ["version.dll"] + ["goh_mods/" + m[0] for m in MODS.values()]:
         if not os.path.isfile(os.path.join(BIN, dll)):
             sys.exit("missing build/binaries/x64/%s: run build.ps1 first" % dll)
     gen = os.path.join(ROOT, "mods", "coop-checkpoint", "data", "make_coop_checkpoint_mod.py")
     subprocess.run([sys.executable, gen, game_dir, DATA], check=True)
+    hd = os.path.join(ROOT, "mods", "historical-doctrine", "data", "make_hd_data.py")
+    subprocess.run([sys.executable, hd, game_dir, hd_source, os.path.join(ROOT, "build")], check=True)
     os.makedirs(OUT, exist_ok=True)
     for mod_id in MODS:
         write_zip(os.path.join(OUT, "goh-%s-v%s.zip" % (mod_id, mod_version(mod_id))), [mod_id])
