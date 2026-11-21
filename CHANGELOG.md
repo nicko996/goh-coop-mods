@@ -3,11 +3,56 @@
 Every mod has its own version since 2026-11-01. Release tags are `<mod>-v<version>` (and `loader-v<version>` for
 `version.dll`). Before that, the whole repository used a single version (`v1.0.0`, `v1.0.1`).
 
-Current versions: Coop Game Speed 1.0.1, Coop Checkpoint 1.0.3, Loot Highlight 1.0.2, Inspect Preview 1.0.3,
-Historical Doctrine 1.0.0, loader 1.0.1.
+Current versions: Coop Game Speed 1.0.2, Coop Checkpoint 1.0.4, Loot Highlight 1.0.3, Inspect Preview 1.0.4,
+Historical Doctrine 1.0.0, loader 1.0.1, GOHSE bridge 1.0.0.
+
+## Coop Checkpoint 1.0.4 (2026-11-21)
+
+- Works together with **GOHSE** (Gates of Hell Script Extender). GOHSE is a `version.dll` too, so it replaces the
+  loader of this mod and the two couldn't be used together. The zip now also installs a small script in
+  `gohse\mods\goh_dll_mods`: with GOHSE's `version.dll` in place, GOHSE runs it at every start and it loads the
+  mod into the game and into the host's dedicated server. If you use GOHSE, **don't overwrite `version.dll`** when
+  you extract the zip. Without GOHSE nothing changes.
+- The automatic restart after **Reload** finds the game window whichever thread loads the DLL (GOHSE loads it
+  from another thread than the loader does).
+
+## Coop Game Speed 1.0.2 (2026-11-21)
+
+- Works together with **GOHSE** (Gates of Hell Script Extender). GOHSE is a `version.dll` too, so it replaces the
+  loader of this mod and the two couldn't be used together. The zip now also installs a small script in
+  `gohse\mods\goh_dll_mods`: with GOHSE's `version.dll` in place, GOHSE runs it at every start and it loads the
+  mod into the game and into the host's dedicated server. If you use GOHSE, **don't overwrite `version.dll`** when
+  you extract the zip. Without GOHSE nothing changes.
+
+## Loot Highlight 1.0.3 (2026-11-21)
+
+- Works together with **GOHSE** (Gates of Hell Script Extender). GOHSE is a `version.dll` too, so it replaces the
+  loader of this mod and the two couldn't be used together. The zip now also installs a small script in
+  `gohse\mods\goh_dll_mods`: with GOHSE's `version.dll` in place, GOHSE runs it at every start and it loads the
+  mod. If you use GOHSE, **don't overwrite `version.dll`** when you extract the zip. Without GOHSE nothing changes.
+
+## Inspect Preview 1.0.4 (2026-11-21)
+
+- Works together with **GOHSE** (Gates of Hell Script Extender). GOHSE is a `version.dll` too, so it replaces the
+  loader of this mod and the two couldn't be used together. The zip now also installs a small script in
+  `gohse\mods\goh_dll_mods`: with GOHSE's `version.dll` in place, GOHSE runs it at every start and it loads the
+  mod. If you use GOHSE, **don't overwrite `version.dll`** when you extract the zip. Without GOHSE nothing changes.
+
+## GOHSE bridge 1.0.0 (2026-11-21)
+
+- New: `loader/gohse_bridge` (`mod.json` + `bootstrap.lua`), installed as
+  `<game>\gohse\mods\goh_dll_mods\resource\script\gohse\` by every zip. It is a GOHSE script mod that loads every
+  `binaries\x64\goh_mods\*.dll`, in the same order as the loader, and waits until each DLL has installed its
+  patches (`goh_mod_wait`, exported by the DLLs from the versions above) before the game goes on.
+- The DLLs take the process's first thread as the game's main thread instead of the thread that loads them, and
+  signal when they are ready (`common/goh_common.h`). Loaded by the bridge they start a few seconds later than
+  with the loader, right after the game has applied its mods and before it reads its files again.
 
 ## Historical Doctrine 1.0.0 (unreleased)
 
+- Works together with **GOHSE** (Gates of Hell Script Extender) through the bridge script the zip installs in
+  `gohse\mods\goh_dll_mods` (see GOHSE bridge 1.0.0 above). If you use GOHSE, don't overwrite `version.dll` when
+  you extract the zip.
 - First release: the DLL edition of the Workshop mod *Historical Doctrine for Skirmishes*. It adds the Historical
   doctrine to the 20 skirmish missions in memory while the game reads them, so it works together with other mods
   that change those missions (for example **Spawn Menu**), in any mod-list order. Don't use it together with the

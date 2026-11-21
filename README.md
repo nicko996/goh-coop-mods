@@ -1,7 +1,8 @@
 # Gates of Hell coop mods
 
-Four independent mods for **Call to Arms: Gates of Hell – Ostfront** (x64, tested on game version **1.067.0**).
-Install only the ones you want.
+Five independent mods for **Call to Arms: Gates of Hell – Ostfront** (x64, tested on game version **1.069.0**).
+Install only the ones you want. They also work together with
+[GOHSE](#together-with-gohse-gates-of-hell-script-extender), the Gates of Hell Script Extender.
 
 | Mod | What it does | Who needs it |
 |---|---|---|
@@ -24,7 +25,8 @@ What changed in each version is in the [changelog](CHANGELOG.md).
    current version of all four.
 2. Extract each zip into the game folder, the one that contains `binaries` and `mods`, e.g.
    `C:\Program Files (x86)\Steam\steamapps\common\Call to Arms - Gates of Hell`.
-   If Windows asks, overwrite `version.dll`: it's the same file in every zip.
+   If Windows asks, overwrite `version.dll`: it's the same file in every zip. **If you use GOHSE, don't
+   overwrite it**: see [Together with GOHSE](#together-with-gohse-gates-of-hell-script-extender).
 3. **Coop Checkpoint only:** start the game and enable **coop_checkpoint** in *Options › Mods*.
 
 After installing you should have:
@@ -32,11 +34,29 @@ After installing you should have:
 ```
 <game>\binaries\x64\version.dll                  the mod loader (shared)
 <game>\binaries\x64\goh_mods\<mod>.dll           one DLL per installed mod
+<game>\gohse\mods\goh_dll_mods\                  loads the mods when GOHSE is installed (see below), otherwise unused
 <game>\mods\coop_checkpoint\                     Coop Checkpoint only (data mod)
 ```
 
 **Uninstall a mod:** delete its DLL from `binaries\x64\goh_mods` (for Coop Checkpoint also disable or delete
-`mods\coop_checkpoint`). **Uninstall everything:** also delete `binaries\x64\version.dll` and the `goh_mods` folder.
+`mods\coop_checkpoint`). **Uninstall everything:** also delete `binaries\x64\version.dll`, the `goh_mods` folder
+and `gohse\mods\goh_dll_mods`.
+
+### Together with GOHSE (Gates of Hell Script Extender)
+
+[GOHSE](https://github.com/nature2468/gohse) is a `binaries\x64\version.dll` too, so it can't be installed next to
+this loader: the `version.dll` you copy last replaces the other one. The mods work with either of them.
+
+- **With GOHSE:** keep GOHSE's `version.dll`. When you extract a mod's zip, **skip `version.dll`** (answer *no*
+  when Windows asks to replace it). If you replaced it by mistake, extract GOHSE's zip again. The mods are then
+  loaded by the script every zip puts in `<game>\gohse\mods\goh_dll_mods\`: GOHSE runs it at every start, in the
+  game and in the dedicated server, and there is nothing to enable. GOHSE's console and its logs in
+  `<game>\gohse\logs` list the DLLs it loaded (lines with `[nicko996.goh-dll-mods]`).
+- **Without GOHSE:** nothing changes. `version.dll` is this loader and the `gohse` folder does nothing.
+
+This needs Coop Game Speed 1.0.2, Coop Checkpoint 1.0.4, Loot Highlight 1.0.3, Inspect Preview 1.0.4,
+Historical Doctrine 1.0.0, or newer. Under GOHSE the mods are loaded a few seconds later than with this loader,
+right after the game has applied its mods. Made for GOHSE 0.1.2 (Lua API v1) on game version 1.069.0.
 
 > Upgrading from the old single-DLL builds ("Coop Game Speed v2 + checkpoint", build ≤ 38): the new
 > `version.dll` replaces the old one. Delete any `mods\coop_checkpoint\install` folder left by older packages.
@@ -50,6 +70,12 @@ import. It forwards every export to the real `System32\version.dll`. In `call_to
 `call_to_arms_server.exe` it also loads every DLL in `binaries\x64\goh_mods\`. Other programs that happen to
 load it are left alone.
 
+With GOHSE's `version.dll` installed instead, the same DLLs are loaded by the GOHSE script mod in
+`gohse\mods\goh_dll_mods` (`loader/gohse_bridge`: a `mod.json` and a `bootstrap.lua` that calls `LoadLibrary`
+through LuaJIT's FFI). GOHSE runs it right after the game has applied its mods, on the game's own thread, so the
+script waits until every DLL has installed its patches before the game goes on. A DLL that is already loaded is
+left alone, and the DLLs stay loaded until the game exits.
+
 Each mod DLL finds the code it needs by byte signatures and patches it in memory only. The game files on disk
 are never modified. If a game update changes the code a mod needs, that mod skips the part it can't find and
 writes `ERROR: ...` in its log, and the game runs unmodded for that part.
@@ -58,7 +84,7 @@ Logs (in `%TEMP%`, overwritten at every start):
 
 | File | Content |
 |---|---|
-| `goh_mod_loader_<exe>.log` | which mod DLLs were loaded |
+| `goh_mod_loader_<exe>.log` | which mod DLLs were loaded (with GOHSE: its console and `<game>\gohse\logs` instead) |
 | `goh_<mod>_<exe>.log` | what each mod found and patched, plus runtime messages |
 
 `<exe>` is `call_to_arms.exe` (your game) or `call_to_arms_server.exe` (the local dedicated server the host's
@@ -70,9 +96,12 @@ Requirements: Windows x64, [Zig](https://ziglang.org/) 0.13 or newer (`winget in
 0.17), PowerShell. No Visual Studio or Windows SDK needed: Zig ships its own MinGW headers and linker.
 
 ```powershell
-.\build.ps1                                   # -> build\binaries\x64\version.dll + goh_mods\*.dll
-.\build.ps1 -Install "C:\...\Call to Arms - Gates of Hell"   # build and copy into the game (all four mods)
+.\build.ps1                                   # -> build\binaries\x64\version.dll + goh_mods\*.dll, build\gohse
+.\build.ps1 -Install "C:\...\Call to Arms - Gates of Hell"   # build and copy into the game (all the mods)
 ```
+
+`-Install` keeps a `version.dll` that isn't this loader (GOHSE's, for example) and says so; `-ReplaceLoader`
+overwrites it.
 
 Each DLL is a single C file, compiled as:
 
@@ -109,6 +138,13 @@ It needs Python 3.8+ and Pillow for the button icons (`pip install pillow`). Aft
 run `python tools/test_mission_patch.py "<game folder>" [<mod folder> ...]` (needs zig): it compares the DLL's
 patch (`mods/coop-checkpoint/mission_patch.h`) with the generator's reference `patch()` on every mission.
 
+### GOHSE bridge
+
+`loader/gohse_bridge` is not compiled: `build.ps1` copies it to `build\gohse\mods\goh_dll_mods\resource\script\gohse`.
+After changing `bootstrap.lua`, run `python tools/test_gohse_bridge.py <lua51.dll>` with the `lua51.dll` of any
+64-bit LuaJIT (needs zig). It runs the script twice in a real LuaJIT against a fake game folder and checks the load
+order, the error and warning lines, and that a second run loads nothing again.
+
 ### Release zips
 
 ```
@@ -139,8 +175,10 @@ The page descriptions are edited through `.github/workflows/nexus-description.ym
 ## Repository layout
 
 ```
-common/                 shared headers (goh_common.h, goh_loot.h)
+common/                 shared headers (goh_common.h, goh_loot.h, goh_sdl_hook.h)
 loader/                 version.dll proxy that loads binaries\x64\goh_mods\*.dll
+loader/gohse_bridge/    GOHSE script mod that loads the same DLLs when GOHSE's version.dll is installed
+mods/historical-doctrine/  Historical Doctrine DLL + README, data/ = patch and data-mod generator
 mods/coop-game-speed/   Coop Game Speed DLL + README
 mods/coop-checkpoint/   Coop Checkpoint DLL + README, data/ = data-mod generator
 mods/loot-highlight/    Loot Highlight DLL + README

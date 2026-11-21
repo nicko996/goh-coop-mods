@@ -1,10 +1,13 @@
 # Builds the loader (version.dll) and every mod DLL into build\
 #   build\binaries\x64\version.dll
 #   build\binaries\x64\goh_mods\<mod>.dll
+#   build\gohse\mods\goh_dll_mods\...          the GOHSE bridge script (loader\gohse_bridge), copied as it is
 # Requirements: Zig (https://ziglang.org, e.g. `winget install zig.zig`) on PATH.
-# Optional: -Install "<game folder>" copies the result into the game.
+# Optional: -Install "<game folder>" copies the result into the game.  A version.dll that is not this loader
+# (GOHSE's, for example) is kept: the GOHSE bridge loads the mods then.  -ReplaceLoader overwrites it anyway.
 param(
-    [string]$Install = ""
+    [string]$Install = "",
+    [switch]$ReplaceLoader
 )
 $ErrorActionPreference = "Stop"
 $root = $PSScriptRoot
@@ -28,14 +31,33 @@ foreach ($t in $targets) {
     if ($LASTEXITCODE -ne 0) { throw "build failed: $($t.src)" }
 }
 Remove-Item -ErrorAction SilentlyContinue (Join-Path $out "*.lib"), (Join-Path $mods "*.lib"), (Join-Path $out "*.pdb"), (Join-Path $mods "*.pdb")
+# GOHSE bridge: the folder GOHSE reads local script mods from
+$bridgeRel = "gohse\mods\goh_dll_mods\resource\script\gohse"
+$bridge = Join-Path $root "build\$bridgeRel"
+New-Item -ItemType Directory -Force $bridge | Out-Null
+Copy-Item (Join-Path $root "loader\gohse_bridge\mod.json"), (Join-Path $root "loader\gohse_bridge\bootstrap.lua") $bridge -Force
 Write-Host "built into $out"
 
 if ($Install -ne "") {
     $dst = Join-Path $Install "binaries\x64"
     if (-not (Test-Path (Join-Path $dst "call_to_arms.exe"))) { throw "not a Gates of Hell folder: $Install" }
     New-Item -ItemType Directory -Force (Join-Path $dst "goh_mods") | Out-Null
-    Copy-Item (Join-Path $out "version.dll") $dst -Force
+    # the loader, unless another tool's version.dll is installed (this loader's file contains its log title)
+    $installed = Join-Path $dst "version.dll"
+    $foreign = $false
+    if ((Test-Path $installed) -and -not $ReplaceLoader) {
+        $bytes = [System.IO.File]::ReadAllBytes($installed)
+        $foreign = [System.Text.Encoding]::ASCII.GetString($bytes).IndexOf("GoH mod loader") -lt 0
+    }
+    if ($foreign) {
+        Write-Host "note: $installed is not this loader (GOHSE?): kept. The mods are loaded by the GOHSE bridge; use -ReplaceLoader to overwrite it"
+    } else {
+        Copy-Item (Join-Path $out "version.dll") $dst -Force
+    }
     Copy-Item (Join-Path $mods "*.dll") (Join-Path $dst "goh_mods") -Force
+    $bridgeDst = Join-Path $Install $bridgeRel
+    New-Item -ItemType Directory -Force $bridgeDst | Out-Null
+    Copy-Item (Join-Path $bridge "*") $bridgeDst -Force
     # Historical Doctrine: mission patches next to the DLL + data mod (made by mods\historical-doctrine\data\make_hd_data.py)
     $hdp = Join-Path $mods "historical_doctrine"
     if (Test-Path $hdp) {

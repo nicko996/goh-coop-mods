@@ -34,7 +34,7 @@
  * Log: %TEMP%\goh_coop_game_speed_<exe name>.log
  */
 #define GOH_MOD_NAME "coop_game_speed"
-#define GOH_MOD_VERSION "1.0.1"   /* this mod's own version (release tag <mod-id>-v<version>) */
+#define GOH_MOD_VERSION "1.0.2"   /* this mod's own version (release tag <mod-id>-v<version>) */
 #include "../../common/goh_common.h"
 
 /* ------------------------------------------------------------------ signatures */
@@ -235,6 +235,7 @@ static void server_main(void)
   wchar_t name[64];
   shared_name(name, 64, owner);
   logf_("owner game pid %lu; reading %ls", (unsigned long) owner, name);
+  goh_ready();
   HANDLE map = NULL;
   Shared *sh = NULL;
   float current = 1.0f;
@@ -288,6 +289,7 @@ static void game_main(void)
   sh->updates = 0;
   sh->magic = SHARED_MAGIC;
   logf_("publishing speed requests in %ls", name);
+  goh_ready();
 
   float current = 1.0f;
   for (;;) {

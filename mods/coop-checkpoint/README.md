@@ -16,8 +16,13 @@ must match anyway to join).
 ## Install
 
 1. Extract `goh-coop-checkpoint-v*.zip` into the game folder (see the [main README](../../README.md)). Files:
-   `binaries\x64\version.dll`, `binaries\x64\goh_mods\coop_checkpoint.dll`, `mods\coop_checkpoint\`.
+   `binaries\x64\version.dll`, `binaries\x64\goh_mods\coop_checkpoint.dll`, `mods\coop_checkpoint\`,
+   `gohse\mods\goh_dll_mods\`.
 2. In the game: *Options › Mods* → enable **coop_checkpoint**.
+
+With [GOHSE](https://github.com/nature2468/gohse) installed, keep GOHSE's `version.dll` (don't overwrite it):
+the script in `gohse\mods\goh_dll_mods` loads the mod, from 1.0.4. See
+[Together with GOHSE](../../README.md#together-with-gohse-gates-of-hell-script-extender).
 
 Works with other mods that change the missions (for example a new skirmish doctrine), in any mod-list order:
 the buttons are added to whatever mission the game loads. From 1.0.3 the hook on the game's text reader is the

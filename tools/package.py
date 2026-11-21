@@ -18,8 +18,10 @@ Versions: every mod has its own (GOH_MOD_VERSION in its .c file), the loader too
 loader/version_proxy.c).  Release tags: <mod id>-v<version>, loader-v<version>.
 
 Every zip is laid out like the game folder: extract it into <game_dir> (the folder that contains
-binaries/ and mods/).  version.dll (the loader) is in every zip and is the same file in all of them.
+binaries/ and mods/).  version.dll (the loader) and the GOHSE bridge script (gohse/mods/goh_dll_mods, from
+loader/gohse_bridge) are in every zip and are the same files in all of them.
 """
+import json
 import os
 import re
 import subprocess
@@ -42,6 +44,10 @@ MODS = {
 }
 # extra folders next to the DLLs (binaries/x64/goh_mods/<folder>)
 EXTRA = {"historical-doctrine": "historical_doctrine"}
+# the GOHSE bridge script: in every zip, like the loader (it loads the mods when GOHSE's version.dll is installed)
+BRIDGE_SRC = os.path.join(ROOT, "loader", "gohse_bridge")
+BRIDGE_DST = "gohse/mods/goh_dll_mods/resource/script/gohse"
+BRIDGE_FILES = ["mod.json", "bootstrap.lua"]
 
 
 def read_version(path, macro):
@@ -64,9 +70,16 @@ def add_tree(z, src, arc_prefix):
             z.write(full, arc_prefix + "/" + os.path.relpath(full, src).replace(os.sep, "/"))
 
 
+def bridge_version():
+    with open(os.path.join(BRIDGE_SRC, "mod.json"), encoding="utf-8") as f:
+        return json.load(f)["version"]
+
+
 def write_zip(path, mod_ids):
     with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:
         z.write(os.path.join(BIN, "version.dll"), "binaries/x64/version.dll")
+        for name in BRIDGE_FILES:
+            z.write(os.path.join(BRIDGE_SRC, name), BRIDGE_DST + "/" + name)
         for mod_id in mod_ids:
             dll, folder, _, data = MODS[mod_id]
             z.write(os.path.join(BIN, "goh_mods", dll), "binaries/x64/goh_mods/" + dll)
@@ -75,7 +88,8 @@ def write_zip(path, mod_ids):
                 add_tree(z, os.path.join(DATA, data), "mods/" + data)
             if mod_id in EXTRA:
                 add_tree(z, os.path.join(BIN, "goh_mods", EXTRA[mod_id]), "binaries/x64/goh_mods/" + EXTRA[mod_id])
-        lines = ["%s v%s" % (mod_id, mod_version(mod_id)) for mod_id in mod_ids] + ["loader v%s" % loader_version()]
+        lines = ["%s v%s" % (mod_id, mod_version(mod_id)) for mod_id in mod_ids]
+        lines += ["loader v%s" % loader_version(), "gohse bridge v%s" % bridge_version()]
         z.writestr("goh_mods_readme/VERSION.txt", "\r\n".join(lines) + "\r\n")
     print("%-40s %6.1f MB" % (os.path.basename(path), os.path.getsize(path) / 1e6))
 

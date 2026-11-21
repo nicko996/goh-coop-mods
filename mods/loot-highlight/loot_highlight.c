@@ -22,7 +22,7 @@
  * Log: %TEMP%\goh_loot_highlight_<exe name>.log
  */
 #define GOH_MOD_NAME "loot_highlight"
-#define GOH_MOD_VERSION "1.0.2"   /* this mod's own version (release tag <mod-id>-v<version>) */
+#define GOH_MOD_VERSION "1.0.3"   /* this mod's own version (release tag <mod-id>-v<version>) */
 #include "../../common/goh_loot.h"
 
 static void *volatile g_hl_seen[24];

@@ -27,7 +27,7 @@
  * Log: %TEMP%\goh_inspect_preview_<exe name>.log
  */
 #define GOH_MOD_NAME "inspect_preview"
-#define GOH_MOD_VERSION "1.0.3"   /* this mod's own version (release tag <mod-id>-v<version>) */
+#define GOH_MOD_VERSION "1.0.4"   /* this mod's own version (release tag <mod-id>-v<version>) */
 #include "../../common/goh_loot.h"
 
 typedef void *(*GetterFn)(void);

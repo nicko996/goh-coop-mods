@@ -2,15 +2,17 @@
  * goh_common.h - shared helpers for the Gates of Hell mod DLLs (x64, game v1.067)
  * ================================================================================
  *
- * Every mod is a small DLL loaded by the shared version.dll loader (loader/version_proxy.c) into
- * call_to_arms.exe (the game) and call_to_arms_server.exe (the dedicated server the host's game starts
- * for a multiplayer match).  This header is included by each mod: all functions are static, so every
- * mod has its own copy and its own log.
+ * Every mod is a small DLL loaded into call_to_arms.exe (the game) and call_to_arms_server.exe (the dedicated
+ * server the host's game starts for a multiplayer match), either by the shared version.dll loader
+ * (loader/version_proxy.c, at process start) or by the GOHSE bridge script (loader/gohse_bridge, when GOHSE's
+ * version.dll is installed instead: after the game has applied its mods, on the game's own thread).  This
+ * header is included by each mod: all functions are static, so every mod has its own copy and its own log.
  *
  * A mod defines
  *     #define GOH_MOD_NAME "loot_highlight"
  *     static void mod_start(int kind);      // kind: GOH_GAME or GOH_SERVER, runs on a worker thread
- * and then writes GOH_MOD_ENTRY() once.
+ * and then writes GOH_MOD_ENTRY() once.  A mod_start that never returns calls goh_ready() once its patches
+ * are in.
  *
  * Everything is found by byte signatures (W = wildcard).  If a signature is not found (game updated),
  * the part that needs it is skipped and logged; the game is never patched blindly.
@@ -20,6 +22,7 @@
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <tlhelp32.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
@@ -38,7 +41,7 @@ enum { GOH_OTHER = 0, GOH_GAME = 1, GOH_SERVER = 2 };
 
 /* ------------------------------------------------------------------ log */
 static FILE *g_log = NULL;
-static DWORD g_main_tid;      /* the game's main thread (the loader runs the mods' DllMain on it) */
+static DWORD g_main_tid;      /* the game's main thread: the process's first one, it owns the game window */
 
 static GOH_UNUSED void logf_(const char *fmt, ...)
 {
@@ -343,11 +346,60 @@ static int goh_process_kind(wchar_t *exe_name, size_t cap)
   return GOH_OTHER;
 }
 
+/* The process's first thread.  The mods can't take the thread their DllMain runs on: the GOHSE bridge loads them
+ * later, from the game's own thread, which is not the one that owns the window. */
+static DWORD goh_find_main_thread(void)
+{
+  DWORD pid = GetCurrentProcessId(), best = 0;
+  ULONGLONG best_time = ~0ULL;
+  HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0);
+  if (snap == INVALID_HANDLE_VALUE) return 0;
+  THREADENTRY32 te;
+  te.dwSize = sizeof te;
+  if (Thread32First(snap, &te)) {
+    do {
+      if (te.th32OwnerProcessID != pid) continue;
+      HANDLE th = OpenThread(THREAD_QUERY_LIMITED_INFORMATION, FALSE, te.th32ThreadID);
+      if (th == NULL) continue;
+      FILETIME created, exited, kernel, user;
+      if (GetThreadTimes(th, &created, &exited, &kernel, &user)) {
+        ULONGLONG t = ((ULONGLONG) created.dwHighDateTime << 32) | created.dwLowDateTime;
+        if (t < best_time) { best_time = t; best = te.th32ThreadID; }
+      }
+      CloseHandle(th);
+    } while (Thread32Next(snap, &te));
+  }
+  CloseHandle(snap);
+  return best;
+}
+
+/* Ready signal.  Set when the mod's patches are in.  A loader that brings the mods in while the game is already
+ * running (the GOHSE bridge) calls the export goh_mod_wait() after LoadLibrary, so the game doesn't go on before
+ * the hooks are installed (right after applying its mods it reads the files some mods patch). */
+static HANDLE g_ready_event;
+
+static GOH_UNUSED void goh_ready(void)
+{
+  if (g_ready_event) SetEvent(g_ready_event);
+}
+
+/* returns 1 when the mod is ready (or does nothing in this process), 0 if it is still starting after ms */
+__declspec(dllexport) int goh_mod_wait(unsigned ms)
+{
+  return g_ready_event == NULL || WaitForSingleObject(g_ready_event, ms) == WAIT_OBJECT_0;
+}
+
 static void mod_start(int kind);
 
 static DWORD WINAPI goh_worker(LPVOID kind)
 {
+  DWORD first = goh_find_main_thread();
+  if (first != 0 && first != g_main_tid) {
+    logf_("main thread %lu (loaded later, on thread %lu)", (unsigned long) first, (unsigned long) g_main_tid);
+    g_main_tid = first;
+  }
   mod_start((int) (ULONG_PTR) kind);
+  goh_ready();
   return 0;
 }
 
@@ -373,8 +425,10 @@ static DWORD WINAPI goh_worker(LPVOID kind)
     }                                                                                                \
     logf_("%s %s loaded into %ls, main thread %lu", GOH_MOD_NAME, GOH_MOD_VERSION, exe,              \
           (unsigned long) g_main_tid);                                                               \
+    g_ready_event = CreateEventW(NULL, TRUE, FALSE, NULL);                                           \
     HANDLE th = CreateThread(NULL, 0, goh_worker, (LPVOID) (ULONG_PTR) kind, 0, NULL);               \
     if (th) CloseHandle(th);                                                                         \
+    else goh_ready();                                                                                \
     return TRUE;                                                                                     \
   }
 

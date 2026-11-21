@@ -30,6 +30,10 @@ enabled (the mod list must match anyway to join).
    unsubscribe from it (or disable it).
 3. In a skirmish, choose **Doctrine: Historical (...)** in the mission options.
 
+With [GOHSE](https://github.com/nature2468/gohse) installed, keep GOHSE's `version.dll` (don't overwrite it):
+the script the zip puts in `gohse\mods\goh_dll_mods` loads the mod. See
+[Together with GOHSE](../../README.md#together-with-gohse-gates-of-hell-script-extender).
+
 ## How it works
 
 Found by reverse engineering, game v1.067. Every peer (each player's game and the host's local dedicated server)

@@ -20,7 +20,11 @@ speed is locked in every network game.
 ## Install
 
 Extract `goh-coop-game-speed-v*.zip` into the game folder (see the [main README](../../README.md)). Files:
-`binaries\x64\version.dll`, `binaries\x64\goh_mods\coop_game_speed.dll`.
+`binaries\x64\version.dll`, `binaries\x64\goh_mods\coop_game_speed.dll`, `gohse\mods\goh_dll_mods\`.
+
+With [GOHSE](https://github.com/nature2468/gohse) installed, keep GOHSE's `version.dll` (don't overwrite it):
+the script in `gohse\mods\goh_dll_mods` loads the mod. See
+[Together with GOHSE](../../README.md#together-with-gohse-gates-of-hell-script-extender).
 
 ## How it works
 
